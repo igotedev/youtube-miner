@@ -1,0 +1,7 @@
+# Normaliza fim de linha para LF no repositorio, coerente com `endOfLine: "lf"`
+# do Prettier. Sem isso, o mesmo arquivo produz diff diferente em Windows e Linux.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
