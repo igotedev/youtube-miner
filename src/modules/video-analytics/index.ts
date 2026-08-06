@@ -22,6 +22,14 @@ export {
 export type { ChannelMetrics, FormatMetrics, VideoMetrics } from './domain/channel-metrics';
 export type { PublicationFrequency } from './domain/publication-timing';
 
+// --- Resultado persistivel (SPEC-004) ---
+export {
+  ANALYTICS_ALGORITHM_VERSION,
+  type AnalyticsResult,
+  type AnalyticsResultId,
+} from './domain/analytics-result';
+export type { AnalyticsResultRepository } from './application/ports/analytics-result-repository';
+
 // --- Regra de outliers ---
 export { OUTLIER_THRESHOLDS, classifyOutlier, type OutlierBand } from './domain/outlier';
 

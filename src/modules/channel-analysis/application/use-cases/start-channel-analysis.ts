@@ -1,90 +1,160 @@
 import type { UserId } from '@/modules/identity';
-import type { ChannelResolver, YouTubeChannelSource } from '@/modules/youtube-collection';
+import type {
+  ChannelResolver,
+  CollectionRun,
+  CollectionRunId,
+  YouTubeChannelId,
+  YouTubeChannelSource,
+} from '@/modules/youtube-collection';
 import { MAX_RECENT_VIDEOS } from '@/modules/youtube-collection';
-import type { Clock } from '@/shared/domain';
+import type { CollectionRunRepository } from '@/modules/youtube-collection';
+import type { Clock, UuidGenerator } from '@/shared/domain';
 import type { Logger } from '@/shared/observability';
 
-import type { Analysis } from '../../domain/analysis';
+import type { Analysis, AnalysisId } from '../../domain/analysis';
 import type { AnalysisStatus } from '../../domain/analysis-status';
-import type { AnalysisIdGenerator, AnalysisRepository } from '../ports/analysis-repository';
+import type { AnalysisRepository } from '../ports/analysis-repository';
 
 /**
  * Caso de uso: iniciar a analise de um canal.
  *
- * ESCOPO DESTA ETAPA — leia antes de mexer.
+ * ESCOPO ATUAL — leia antes de mexer.
  *
- * Este e o fluxo vertical que valida a arquitetura em execucao: presentation
- * chamaria este caso de uso, que so conhece PORTAS, e adaptadores concretos
- * (reais ou falsos) sao injetados de fora. Nada aqui importa a YouTube Data
- * API, Supabase ou Claude.
+ * Percorre `pending` -> `collecting_channel` -> `collecting_videos` e PARA.
+ * Nao vai ate `completed` de proposito: `calculating_metrics` precisa que o
+ * resultado da SPEC-003 seja persistido pelo caso de uso de metricas, e
+ * `generating_insights` depende do adaptador Claude, que nao existe.
  *
- * Ele percorre `pending` -> `collecting_channel` -> `collecting_videos` e PARA.
- * Nao vai ate `completed` de proposito: `calculating_metrics` depende do motor
- * de metricas (SPEC-003) e `generating_insights` depende do adaptador Claude —
- * nenhum dos dois existe. Fingir que passou por essas etapas produziria uma
- * analise mentirosa.
- *
- * Quando a SPEC-003 chegar, as etapas seguintes entram aqui, e a falha da IA
- * devera levar a `partially_completed`, nunca a `failed` (RN-09).
+ * O que a SPEC-004 acrescentou aqui e a RN-10: antes de coletar, o caso de uso
+ * procura uma coleta recente do MESMO canal, feita para qualquer usuario. Se
+ * encontrar, reaproveita e nao gasta uma unidade de quota sequer.
  */
 
 export interface StartChannelAnalysisInput {
   readonly requestedBy: UserId;
   readonly channelUrl: string;
+  /** Fornecida por quem chama; impede duplicar a analise em um retry. */
+  readonly idempotencyKey?: string;
 }
 
 export interface StartChannelAnalysisDependencies {
   readonly clock: Clock;
   readonly logger: Logger;
-  readonly ids: AnalysisIdGenerator;
+  readonly ids: UuidGenerator;
   readonly channelResolver: ChannelResolver;
   readonly channelSource: YouTubeChannelSource;
   readonly analyses: AnalysisRepository;
+  readonly collectionRuns: CollectionRunRepository;
+  /**
+   * Por quantas horas uma coleta concluida serve de cache (RN-10).
+   *
+   * Chega como numero puro, vindo de `ANALYSIS_FRESHNESS_HOURS`. O dominio nao
+   * le configuracao (R8): quem monta o caso de uso resolve o valor.
+   */
+  readonly analysisFreshnessHours: number;
 }
+
+const MS_PER_HOUR = 3_600_000;
 
 export class StartChannelAnalysis {
   constructor(private readonly deps: StartChannelAnalysisDependencies) {}
 
   async execute(input: StartChannelAnalysisInput): Promise<Analysis> {
-    const { clock, logger, ids, channelResolver, channelSource, analyses } = this.deps;
+    const { clock, logger, ids, channelResolver, analyses, collectionRuns } = this.deps;
+
+    // Idempotencia antes de qualquer trabalho: um retry de rede nao pode virar
+    // uma segunda analise nem uma segunda coleta.
+    if (input.idempotencyKey !== undefined) {
+      const existing = await analyses.findByIdempotencyKey(input.requestedBy, input.idempotencyKey);
+      if (existing !== null) {
+        logger.info('solicitacao repetida; devolvendo analise existente', {
+          analysisId: existing.id,
+        });
+        return existing;
+      }
+    }
 
     const channelId = await channelResolver.resolveChannelId(input.channelUrl);
-
-    // RN-12: o carimbo vem do relogio injetado, nunca de `new Date()`.
     const startedAt = clock.now();
-    const id = ids.next();
 
     let analysis: Analysis = {
-      id,
+      id: ids.next() as AnalysisId,
       requestedBy: input.requestedBy,
       channelId,
       requestedUrl: input.channelUrl,
       status: 'pending',
-      createdAt: startedAt,
-      rawSnapshot: null,
-      metrics: null,
-      insight: null,
-      failureReason: null,
+      collectionRunId: null,
+      analyticsResultId: null,
+      idempotencyKey: input.idempotencyKey ?? null,
+      requestedAt: startedAt,
+      startedAt: null,
+      completedAt: null,
+      failedAt: null,
+      errorCode: null,
     };
+    await analyses.create(analysis);
 
     const advance = async (status: AnalysisStatus, patch: Partial<Analysis> = {}) => {
       analysis = { ...analysis, ...patch, status };
       await analyses.save(analysis);
-      logger.info('analise avancou de estado', { analysisId: id, status });
+      logger.info('analise avancou de estado', { analysisId: analysis.id, status });
     };
 
-    await advance('pending');
+    // RN-10: coleta recente de qualquer usuario serve para este canal.
+    const reusable = await collectionRuns.findReusableForChannel(channelId, startedAt);
 
-    await advance('collecting_channel');
-    const channel = await channelSource.fetchChannel(channelId);
+    if (reusable !== null) {
+      logger.info('reaproveitando coleta recente', {
+        analysisId: analysis.id,
+        collectionRunId: reusable.id,
+      });
+      await advance('collecting_videos', {
+        startedAt,
+        collectionRunId: reusable.id,
+      });
+      return analysis;
+    }
 
-    const videos = await channelSource.fetchRecentVideos(channelId, MAX_RECENT_VIDEOS);
-    await advance('collecting_videos', {
-      // RN-04: o bruto entra em `rawSnapshot`. `metrics` continua null — nao ha
-      // calculo nesta etapa, e null aqui significa "ainda nao apurado", nao zero.
-      rawSnapshot: { channel, videos, collectedAt: clock.now() },
+    await advance('collecting_channel', { startedAt });
+    const run = await this.collect(channelId, startedAt);
+
+    await advance('collecting_videos', { collectionRunId: run.id });
+    return analysis;
+  }
+
+  /** Executa uma coleta nova e a conclui com o snapshot. */
+  private async collect(channelId: YouTubeChannelId, startedAt: Date): Promise<CollectionRun> {
+    const { clock, ids, channelSource, collectionRuns, analysisFreshnessHours } = this.deps;
+
+    const pending = await collectionRuns.startRun({
+      id: ids.next() as CollectionRunId,
+      channelId,
+      status: 'pending',
+      requestedAt: startedAt,
+      startedAt,
+      capturedAt: null,
+      completedAt: null,
+      failedAt: null,
+      reusableUntil: null,
+      errorCode: null,
+      invalidatedAt: null,
     });
 
-    return analysis;
+    const channel = await channelSource.fetchChannel(channelId);
+    const videos = await channelSource.fetchRecentVideos(channelId, MAX_RECENT_VIDEOS);
+
+    // RN-12: `capturedAt` e o instante em que os dados foram lidos da API, e e
+    // ele que carimba as metricas depois.
+    const capturedAt = clock.now();
+    const completed: CollectionRun = {
+      ...pending,
+      status: 'completed',
+      capturedAt,
+      completedAt: capturedAt,
+      reusableUntil: new Date(capturedAt.getTime() + analysisFreshnessHours * MS_PER_HOUR),
+    };
+
+    await collectionRuns.completeWithSnapshot({ run: completed, channel, videos });
+    return completed;
   }
 }

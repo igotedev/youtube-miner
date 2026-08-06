@@ -146,7 +146,9 @@ Uma regra só documentada é uma regra que será violada. Estado atual:
 | RN-11        | `src/config/env.ts` lança se importado no navegador; regra R8 do teste de arquitetura impede `process.env` fora de `config/`.                                                                                                                                  |
 | RN-12, RN-13 | Porta `Clock` injetada; nenhum caso de uso chama `new Date()`. `calculateChannelMetrics` recebe `collectedAt` por parâmetro e é determinística (SPEC-003).                                                                                                     |
 | RN-14        | Portas em `application/ports/`; regras R2 e R3 verificadas por ESLint e teste. As métricas objetivas são calculadas por funções puras em `video-analytics`, nunca pela IA (SPEC-003).                                                                          |
-| RN-07, RN-10 | **Ainda só documentadas.** RN-07 depende da UI (não construída); RN-10 depende do repositório real.                                                                                                                                                            |
+| RN-10        | `findReusableForChannel(channelId, referenceTime)`, `isReusableCollectionRun` puro e índice parcial de reuso. `StartChannelAnalysis` consulta antes de coletar; há teste provando que a segunda análise do mesmo canal não gasta quota (SPEC-004).             |
+| RN-11        | Reforçada: `import 'server-only'` nos clientes Supabase faz o build falhar se um componente de cliente alcançar a service role (SPEC-004, ADR-005).                                                                                                            |
+| RN-07        | **Ainda só documentada.** Depende da UI, que não foi construída.                                                                                                                                                                                               |
 
 ### Regra de outliers — primeira versão
 

@@ -6,11 +6,8 @@ export {
   isTerminalStatus,
   type AnalysisStatus,
 } from './domain/analysis-status';
-export type { Analysis, AnalysisId, RawSnapshot } from './domain/analysis';
-export type {
-  AnalysisIdGenerator,
-  AnalysisRepository,
-} from './application/ports/analysis-repository';
+export type { Analysis, AnalysisId } from './domain/analysis';
+export type { AnalysisRepository } from './application/ports/analysis-repository';
 export {
   StartChannelAnalysis,
   type StartChannelAnalysisDependencies,

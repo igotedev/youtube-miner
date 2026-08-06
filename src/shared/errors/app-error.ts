@@ -51,6 +51,26 @@ export class UnauthorizedError extends AppError {
 }
 
 /**
+ * Colisao com um estado ja existente: chave unica violada, corrida entre duas
+ * requisicoes. Distinto de `ValidationError` — a entrada estava correta, o
+ * mundo e que mudou entre a decisao e a gravacao.
+ */
+export class ConflictError extends AppError {
+  readonly code = 'CONFLICT' as const;
+}
+
+/**
+ * Uma linha persistida nao pode ser convertida em entidade de dominio.
+ *
+ * Sempre um defeito nosso — migration incompleta, escrita fora do adaptador,
+ * mudanca de esquema sem mapeador. Existe para que uma linha corrompida FALHE
+ * em vez de produzir silenciosamente uma entidade com campos errados.
+ */
+export class CorruptedPersistedDataError extends AppError {
+  readonly code = 'UNEXPECTED_ERROR' as const;
+}
+
+/**
  * Falha em um sistema de terceiros (YouTube, Supabase, Claude).
  *
  * Existe para sustentar a regra RN-09: uma falha da IA nao pode invalidar os

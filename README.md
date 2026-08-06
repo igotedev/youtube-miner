@@ -30,14 +30,19 @@ O que existe:
 - ✅ **Motor de métricas** (SPEC-003): média, mediana, visualizações por dia,
   frequência de publicação e classificação de outliers — puro, determinístico,
   com Shorts e vídeos longos rigorosamente separados
-- ✅ SPEC-001 a SPEC-003, quatro ADRs e documentos de arquitetura
+- ✅ **Esquema PostgreSQL** (SPEC-004): 10 tabelas com RLS, separação entre dado
+  global e do usuário, reuso de coletas (RN-10), proteção de concorrência e
+  idempotência — **migração escrita, ainda não executada** (exige Docker)
+- ✅ Mapeadores de persistência validados: `bigint`, datas, estados e JSON de
+  métricas, com recusa de linha corrompida
+- ✅ SPEC-001 a SPEC-004, cinco ADRs e documentos de arquitetura
 
 O que **não** existe:
 
 - ❌ Integração real com YouTube, Supabase ou Claude
 - ❌ Cadastro, login ou qualquer tela de análise
 - ❌ Resolução de handle ou `/c/` para o ID oficial (exige rede)
-- ❌ Banco de dados, migrações ou esquema
+- ❌ Banco local validado — a migração nunca rodou neste ambiente
 - ❌ Extensão Chrome, pagamentos, dashboard
 
 ## Stack
@@ -60,6 +65,7 @@ O que **não** existe:
 | Pacote                                | Tipo | Justificativa                                                                                                                     |
 | ------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `next`, `react`, `react-dom`          | prod | Framework e interface (ADR-002)                                                                                                   |
+| `@supabase/supabase-js`               | prod | Cliente oficial do PostgreSQL/Supabase (ADR-003). Usado **apenas** em `infrastructure`; R2 impede que alcance domain/application  |
 | `zod`                                 | prod | Valida entrada de UI **e** resposta de API externa antes de virar tipo de domínio. Único validador; sem duplicar responsabilidade |
 | `typescript`, `@types/*`              | dev  | Tipagem estrita                                                                                                                   |
 | `tailwindcss`, `@tailwindcss/postcss` | dev  | Estilo                                                                                                                            |
@@ -67,10 +73,14 @@ O que **não** existe:
 | `prettier`                            | dev  | Formatação consistente                                                                                                            |
 | `vitest`                              | dev  | Testes unitários e arquiteturais                                                                                                  |
 
-**Deliberadamente ausentes nesta etapa:** `@supabase/*`, `googleapis`,
-`@anthropic-ai/sdk`, Playwright — nenhuma integração real foi iniciada; e
-`eslint-plugin-boundaries`, porque `no-restricted-imports` já é nativo do ESLint
-e cobre o caso sem dependência nova.
+**Deliberadamente ausentes:** `googleapis` e `@anthropic-ai/sdk` — nenhuma dessas
+integrações foi iniciada; Playwright, adiado para etapa futura;
+`eslint-plugin-boundaries`, porque `no-restricted-imports` já é nativo do ESLint;
+`@supabase/ssr`, que trata sessão via cookie e pertence à SPEC de autenticação;
+o **Supabase CLI como dependência**, porque exige Docker para funcionar — os
+scripts `db:*` o baixam sob demanda via `npx`; e **qualquer ORM** (Prisma,
+Drizzle, TypeORM), que exigiria ADR próprio contra a decisão de migrations SQL
+explícitas do ADR-003.
 
 ## Requisitos locais
 
@@ -128,7 +138,17 @@ npm test             # Vitest, uma passada
 npm run test:watch
 npm run format       # Prettier
 npm run format:check
+
+# Banco local — exigem Docker e Supabase CLI (baixado sob demanda por npx)
+npm run db:start     # sobe o Supabase local
+npm run db:reset     # aplica migrations + seed em banco limpo
+npm run db:test      # testes pgTAP de supabase/tests/database/
+npm run db:types     # gera os tipos TypeScript a partir do banco local
+npm run db:stop
 ```
+
+> `npm run verify` **não** depende do banco: a verificação de rotina não exige
+> Docker. Os testes de banco têm comando próprio.
 
 ## Arquitetura resumida
 
@@ -206,14 +226,16 @@ Detalhes e proibições em `CLAUDE.md`.
 
 ## Documentação
 
-| Documento                                                      | Conteúdo                                                 |
-| -------------------------------------------------------------- | -------------------------------------------------------- |
-| [SPEC-001](docs/specs/SPEC-001-product-foundation.md)          | Visão, MVP, escopo, regras RN-01..RN-14, estados, riscos |
-| [SPEC-002](docs/specs/SPEC-002-youtube-channel-reference.md)   | Validação e normalização de referências de canal         |
-| [SPEC-003](docs/specs/SPEC-003-video-analytics-engine.md)      | Motor de métricas de vídeos e canais                     |
-| [Visão da arquitetura](docs/architecture/overview.md)          | Camadas, fluxo da análise, limites, filas no futuro      |
-| [Regras de dependência](docs/architecture/dependency-rules.md) | R1–R9 e como são verificadas                             |
-| [ADR-001](docs/adr/ADR-001-modular-monolith.md)                | Monólito modular                                         |
-| [ADR-002](docs/adr/ADR-002-nextjs-fullstack.md)                | Next.js nas duas pontas                                  |
-| [ADR-003](docs/adr/ADR-003-postgresql-supabase.md)             | PostgreSQL via Supabase                                  |
-| [ADR-004](docs/adr/ADR-004-external-integrations.md)           | Integrações atrás de contratos                           |
+| Documento                                                                | Conteúdo                                                 |
+| ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| [SPEC-001](docs/specs/SPEC-001-product-foundation.md)                    | Visão, MVP, escopo, regras RN-01..RN-14, estados, riscos |
+| [SPEC-002](docs/specs/SPEC-002-youtube-channel-reference.md)             | Validação e normalização de referências de canal         |
+| [SPEC-003](docs/specs/SPEC-003-video-analytics-engine.md)                | Motor de métricas de vídeos e canais                     |
+| [SPEC-004](docs/specs/SPEC-004-postgresql-persistence.md)                | Persistência, snapshots e reuso de análises              |
+| [Visão da arquitetura](docs/architecture/overview.md)                    | Camadas, fluxo da análise, limites, filas no futuro      |
+| [Regras de dependência](docs/architecture/dependency-rules.md)           | R1–R9 e como são verificadas                             |
+| [ADR-001](docs/adr/ADR-001-modular-monolith.md)                          | Monólito modular                                         |
+| [ADR-002](docs/adr/ADR-002-nextjs-fullstack.md)                          | Next.js nas duas pontas                                  |
+| [ADR-003](docs/adr/ADR-003-postgresql-supabase.md)                       | PostgreSQL via Supabase                                  |
+| [ADR-004](docs/adr/ADR-004-external-integrations.md)                     | Integrações atrás de contratos                           |
+| [ADR-005](docs/adr/ADR-005-persistence-boundaries-and-analysis-reuse.md) | Fronteiras de persistência e reuso de análises           |

@@ -1,9 +1,9 @@
 /**
  * Superficie publica do modulo `youtube-collection`.
  *
- * Os adaptadores falsos NAO sao reexportados: quem precisa deles importa o
- * caminho interno explicitamente, e apenas em teste ou na raiz de composicao.
- * Ver R5 em docs/architecture/dependency-rules.md.
+ * Os adaptadores (falsos e Supabase) NAO sao reexportados: quem precisa deles
+ * importa o caminho interno explicitamente, e apenas em teste ou na raiz de
+ * composicao. Ver R5 em docs/architecture/dependency-rules.md.
  */
 export type { YouTubeChannel, YouTubeChannelId } from './domain/youtube-channel';
 export type { VideoFormat, YouTubeVideo, YouTubeVideoId } from './domain/youtube-video';
@@ -23,9 +23,25 @@ export {
   type InvalidChannelReferenceReason,
 } from './domain/errors/invalid-channel-reference';
 
+// --- Execucao de coleta (SPEC-004) ---
+export {
+  ACTIVE_COLLECTION_RUN_STATUSES,
+  COLLECTION_RUN_STATUSES,
+  isActiveCollectionRunStatus,
+  isReusableCollectionRun,
+  type CollectionRun,
+  type CollectionRunId,
+  type CollectionRunStatus,
+} from './domain/collection-run';
+export { ConcurrentCollectionRunError } from './domain/errors/concurrent-collection-run';
+
 // --- Portas ---
 export type { ChannelResolver } from './application/ports/channel-resolver';
 export {
   MAX_RECENT_VIDEOS,
   type YouTubeChannelSource,
 } from './application/ports/youtube-channel-source';
+export type {
+  CollectionRunRepository,
+  CollectionSnapshot,
+} from './application/ports/collection-run-repository';

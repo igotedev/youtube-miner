@@ -1,5 +1,7 @@
 export {
   AppError,
+  ConflictError,
+  CorruptedPersistedDataError,
   DomainError,
   ExternalServiceError,
   NotFoundError,

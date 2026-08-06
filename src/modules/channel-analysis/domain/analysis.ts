@@ -1,7 +1,6 @@
 import type { UserId } from '@/modules/identity';
-import type { InsightReport } from '@/modules/ai-insights';
-import type { ChannelMetrics } from '@/modules/video-analytics';
-import type { YouTubeChannel, YouTubeChannelId, YouTubeVideo } from '@/modules/youtube-collection';
+import type { AnalyticsResultId } from '@/modules/video-analytics';
+import type { CollectionRunId, YouTubeChannelId } from '@/modules/youtube-collection';
 import type { Brand } from '@/shared/domain';
 
 import type { AnalysisStatus } from './analysis-status';
@@ -9,43 +8,54 @@ import type { AnalysisStatus } from './analysis-status';
 export type AnalysisId = Brand<string, 'AnalysisId'>;
 
 /**
- * Dados publicos exatamente como foram coletados, sem transformacao.
+ * Uma analise de um canal, solicitada por um usuario.
  *
- * RN-04: separado das metricas. Se a regra de calculo mudar amanha, o snapshot
- * permite recalcular sem gastar quota da API de novo.
- */
-export interface RawSnapshot {
-  readonly channel: YouTubeChannel;
-  readonly videos: readonly YouTubeVideo[];
-  readonly collectedAt: Date;
-}
-
-/**
- * Uma analise de um canal em um instante.
+ * PERTENCE A UM USUARIO — diferente da coleta e das metricas, que sao artefatos
+ * globais. Esta e a divisao central do ADR-005.
  *
  * RN-03: um mesmo canal pode ter varias analises em datas diferentes; por isso
- * `channelId` nao e a chave, `id` e.
+ * `id` e a chave, nao `channelId`.
  *
- * Os tres corpos de dados sao campos IRMAOS e independentes, e essa separacao e
- * intencional:
- *  - `rawSnapshot` — o que o YouTube devolveu (RN-04);
- *  - `metrics`     — o que o sistema calculou (RN-04, RN-13);
- *  - `insight`     — o que a IA escreveu (RN-05).
+ * A analise APONTA para os artefatos, em vez de contê-los. Antes da SPEC-004
+ * ela embutia o snapshot bruto; isso impedia que duas analises compartilhassem
+ * a mesma coleta e obrigava a gastar quota da API por usuario. Agora:
  *
- * Cada um e `null` ate a sua etapa terminar. `insight` pode permanecer `null`
- * em uma analise valida (RN-09).
+ *  - `collectionRunId`   -> o que o YouTube devolveu (RN-04), global e reutilizavel
+ *  - `analyticsResultId` -> o que o sistema calculou (RN-04), global
+ *
+ * Os dois sao `null` ate a etapa correspondente terminar.
+ *
+ * O relatorio de IA NAO aparece aqui, e de proposito: a chave estrangeira vai
+ * no sentido `ai_insight_reports.analysis_id -> channel_analyses.id`. Guardar
+ * tambem o caminho inverso criaria dois lugares para a mesma verdade, e o
+ * relatorio e opcional por definicao (RN-09) — uma analise valida existe sem
+ * ele. Quem precisa do relatorio o busca pela porta do modulo `ai-insights`.
  */
 export interface Analysis {
   readonly id: AnalysisId;
   readonly requestedBy: UserId;
   readonly channelId: YouTubeChannelId;
-  /** URL que o usuario digitou. Guardada por rastreabilidade, nunca como chave (RN-02). */
+  /** URL que o usuario digitou. Rastreabilidade apenas, nunca chave (RN-02). */
   readonly requestedUrl: string;
   readonly status: AnalysisStatus;
-  readonly createdAt: Date;
-  readonly rawSnapshot: RawSnapshot | null;
-  readonly metrics: ChannelMetrics | null;
-  readonly insight: InsightReport | null;
-  /** Preenchido apenas quando `status` e `failed` ou `partially_completed`. */
-  readonly failureReason: string | null;
+
+  readonly collectionRunId: CollectionRunId | null;
+  readonly analyticsResultId: AnalyticsResultId | null;
+
+  /**
+   * Chave de idempotencia fornecida pelo cliente.
+   *
+   * Impede que um duplo clique ou um retry de rede crie duas analises do mesmo
+   * canal. Unica por usuario quando presente; `null` e sempre aceito. O banco
+   * nunca a gera — quem chama e responsavel por ela (SPEC-004, secao 16).
+   */
+  readonly idempotencyKey: string | null;
+
+  readonly requestedAt: Date;
+  readonly startedAt: Date | null;
+  readonly completedAt: Date | null;
+  readonly failedAt: Date | null;
+
+  /** Codigo estavel, nunca mensagem bruta de terceiro. */
+  readonly errorCode: string | null;
 }

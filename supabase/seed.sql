@@ -1,10 +1,17 @@
 -- Dados de desenvolvimento local.
 --
--- Vazio de proposito: nenhuma tabela existe ainda. O esquema sera definido na
--- SPEC de persistencia, que devera manter em tabelas SEPARADAS:
---   * o snapshot bruto coletado do YouTube (RN-04);
---   * as metricas calculadas (RN-04);
---   * os relatorios gerados por IA (RN-05).
+-- VAZIO DE PROPOSITO.
 --
--- Nunca coloque credencial, chave ou dado de usuario real neste arquivo — ele
--- e versionado.
+-- O esquema existe (ver migrations/), mas nenhum seed foi escrito. Motivo: os
+-- unicos dados que fariam sentido aqui seriam respostas da YouTube Data API, e
+-- inventar um canal ficticio com numeros plausiveis criaria o risco de alguem
+-- os tratar como coleta real. O fixture usado em teste vive em
+-- `src/modules/youtube-collection/infrastructure/fake/`, onde esta claramente
+-- rotulado como falso.
+--
+-- Quando o adaptador de coleta real existir, o caminho correto e gravar uma
+-- resposta REAL da API em `supabase/fixtures/` e carrega-la aqui, com a data da
+-- captura registrada.
+--
+-- Nunca coloque neste arquivo: chave de API, token, credencial, usuario real ou
+-- dado pessoal. Ele e versionado.
