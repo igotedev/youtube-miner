@@ -1,7 +1,7 @@
-# Visão geral da arquitetura
+﻿# Visão geral da arquitetura
 
 > Referência: SPEC-001. Decisões formais: `docs/adr/`. Regras de dependência com
-> os IDs R1–R8: `dependency-rules.md`.
+> os IDs R1–R9: `dependency-rules.md`.
 
 ## 1. Arquitetura geral
 

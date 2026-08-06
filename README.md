@@ -1,4 +1,4 @@
-# YouTube Niche Miner
+﻿# YouTube Niche Miner
 
 SaaS para **encontrar, analisar e comparar canais do YouTube**. O usuário informa
 a URL de um canal e recebe uma leitura estruturada dos dados públicos daquele
@@ -27,14 +27,16 @@ O que existe:
 - ✅ **Validação e normalização de referências de canal** (SPEC-002): função pura
   que reconhece ID oficial, handle, `/c/` e `/user/`, e recusa vídeo, Shorts,
   playlist, busca e domínio não autorizado — tudo offline
-- ✅ SPEC-001, SPEC-002, quatro ADRs e documentos de arquitetura
+- ✅ **Motor de métricas** (SPEC-003): média, mediana, visualizações por dia,
+  frequência de publicação e classificação de outliers — puro, determinístico,
+  com Shorts e vídeos longos rigorosamente separados
+- ✅ SPEC-001 a SPEC-003, quatro ADRs e documentos de arquitetura
 
 O que **não** existe:
 
 - ❌ Integração real com YouTube, Supabase ou Claude
 - ❌ Cadastro, login ou qualquer tela de análise
 - ❌ Resolução de handle ou `/c/` para o ID oficial (exige rede)
-- ❌ Cálculo de métricas, mediana ou outliers (só o contrato)
 - ❌ Banco de dados, migrações ou esquema
 - ❌ Extensão Chrome, pagamentos, dashboard
 
@@ -143,7 +145,7 @@ presentation  →  application  →  domain
 sabe que Supabase, YouTube ou Claude existem — trocar qualquer um deles é
 escrever outro adaptador, sem tocar em regra de negócio.
 
-As regras de dependência (R1–R8) não são só documentação: rodam em
+As regras de dependência (R1–R9) não são só documentação: rodam em
 `npm run verify`, por duas redes independentes — `eslint.config.mjs` e
 `tests/architecture/dependency-rules.test.ts`.
 
@@ -173,7 +175,7 @@ Detalhes em `docs/architecture/overview.md`.
 │  ├─ migrations/     vazio — esquema virá em SPEC própria
 │  └─ seed.sql
 ├─ tests/
-│  ├─ architecture/   verificação executável das regras R1–R8
+│  ├─ architecture/   verificação executável das regras R1–R9
 │  ├─ integration/    vazio
 │  └─ e2e/            vazio — Playwright em etapa futura
 ├─ CLAUDE.md          instruções permanentes do projeto
@@ -208,8 +210,9 @@ Detalhes e proibições em `CLAUDE.md`.
 | -------------------------------------------------------------- | -------------------------------------------------------- |
 | [SPEC-001](docs/specs/SPEC-001-product-foundation.md)          | Visão, MVP, escopo, regras RN-01..RN-14, estados, riscos |
 | [SPEC-002](docs/specs/SPEC-002-youtube-channel-reference.md)   | Validação e normalização de referências de canal         |
+| [SPEC-003](docs/specs/SPEC-003-video-analytics-engine.md)      | Motor de métricas de vídeos e canais                     |
 | [Visão da arquitetura](docs/architecture/overview.md)          | Camadas, fluxo da análise, limites, filas no futuro      |
-| [Regras de dependência](docs/architecture/dependency-rules.md) | R1–R8 e como são verificadas                             |
+| [Regras de dependência](docs/architecture/dependency-rules.md) | R1–R9 e como são verificadas                             |
 | [ADR-001](docs/adr/ADR-001-modular-monolith.md)                | Monólito modular                                         |
 | [ADR-002](docs/adr/ADR-002-nextjs-fullstack.md)                | Next.js nas duas pontas                                  |
 | [ADR-003](docs/adr/ADR-003-postgresql-supabase.md)             | PostgreSQL via Supabase                                  |

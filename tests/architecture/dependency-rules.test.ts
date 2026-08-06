@@ -293,6 +293,20 @@ describe('regras de dependencia', () => {
     expect(violations).toEqual([]);
   });
 
+  it('R9 — camadas internas nao acessam fontes de nao-determinismo', () => {
+    // RN-13: a mesma entrada precisa produzir sempre a mesma saida. Uma unica
+    // chamada de relogio dentro de domain derruba isso sem quebrar teste algum.
+    // `new Date(valor)` COM argumento continua permitido: e construcao pura.
+    const nondeterminism =
+      /new\s+Date\s*\(\s*\)|Date\s*\.\s*now\s*\(|Math\s*\.\s*random\s*\(|performance\s*\.\s*now\s*\(/;
+
+    const violations = FILES.filter(
+      (f) => f.layer !== null && INNER_LAYERS.includes(f.layer) && nondeterminism.test(f.code),
+    ).map((f) => `R9 — src/${f.rel} le o relogio ou usa aleatoriedade`);
+
+    expect(violations).toEqual([]);
+  });
+
   it('R8 — apenas src/config e shared/infrastructure leem process.env', () => {
     // Segredos entram por um unico lugar (src/config/env.ts). Ler process.env
     // espalhado pelo codigo e como as chaves acabam vazando para o cliente.

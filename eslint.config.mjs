@@ -95,6 +95,41 @@ const INNER_LAYER_FORBIDDEN = [
   },
 ];
 
+/**
+ * R9: camadas internas nao acessam fontes de nao-determinismo.
+ *
+ * `new Date()` sem argumento, `Date.now()`, `Math.random()` e `performance.now()`
+ * devolvem valores diferentes a cada execucao. Uma unica chamada dessas dentro
+ * de `domain` faz a mesma entrada produzir saidas diferentes e derruba a RN-13
+ * sem que nenhum teste necessariamente falhe.
+ *
+ * `new Date(valor)` COM argumento continua permitido: e construcao pura.
+ * A unica implementacao autorizada a ler o relogio e
+ * `shared/infrastructure/system-clock.ts`, atras da porta `Clock`.
+ */
+const NONDETERMINISTIC_SYNTAX = [
+  {
+    selector: 'NewExpression[callee.name="Date"][arguments.length=0]',
+    message:
+      'domain/application nao podem ler o relogio. Receba o instante por parametro (`collectedAt`) ou injete a porta `Clock`. Regra R9 em docs/architecture/dependency-rules.md.',
+  },
+  {
+    selector: 'CallExpression[callee.object.name="Date"][callee.property.name="now"]',
+    message:
+      'domain/application nao podem ler o relogio. Receba o instante por parametro ou injete a porta `Clock`. Regra R9 em docs/architecture/dependency-rules.md.',
+  },
+  {
+    selector: 'CallExpression[callee.object.name="Math"][callee.property.name="random"]',
+    message:
+      'domain/application nao podem usar aleatoriedade: quebra o determinismo exigido pela RN-13. Injete o valor. Regra R9 em docs/architecture/dependency-rules.md.',
+  },
+  {
+    selector: 'CallExpression[callee.object.name="performance"][callee.property.name="now"]',
+    message:
+      'domain/application nao podem ler o relogio. Regra R9 em docs/architecture/dependency-rules.md.',
+  },
+];
+
 /** R6: presentation consome casos de uso, nao instancia adaptadores. */
 const PRESENTATION_FORBIDDEN = [
   CROSS_MODULE_DEEP_IMPORT,
@@ -132,6 +167,7 @@ const eslintConfig = defineConfig([
         'error',
         { patterns: [CROSS_MODULE_DEEP_IMPORT, ...INNER_LAYER_FORBIDDEN] },
       ],
+      'no-restricted-syntax': ['error', ...NONDETERMINISTIC_SYNTAX],
     },
   },
 

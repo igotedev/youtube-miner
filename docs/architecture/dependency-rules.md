@@ -23,6 +23,7 @@ Ambas rodam em `npm run verify`. **Mudou uma regra aqui, mude as duas.**
 | **R6** | `presentation` não importa `infrastructure`                                           |   ✅   |  ✅   |
 | **R7** | Um módulo não acessa tabelas de outro módulo                                          |   ❌   |  ❌   |
 | **R8** | Apenas `src/config/` e `shared/infrastructure/` leem `process.env`                    |   ❌   |  ✅   |
+| **R9** | `domain` e `application` não acessam relógio nem aleatoriedade                        |   ✅   |  ✅   |
 
 R7 depende de SQL, que nenhuma das duas redes lê. Ela é garantida por revisão e
 pela consequência de R5: sem acesso ao repositório de outro módulo, não há como
@@ -135,6 +136,32 @@ o que é segredo e o que é público — RN-11 e ADR-004.
 `src/config/env.ts` lança se for importado no navegador, e nenhum segredo usa o
 prefixo `NEXT_PUBLIC_`.
 
+## R9 — camadas internas não leem o relógio
+
+Proibido em `domain` e `application`: `new Date()` **sem argumento**,
+`Date.now()`, `Math.random()`, `performance.now()`.
+
+```ts
+// ❌ domain/calculate-channel-metrics.ts
+const ageInDays = (Date.now() - publishedAt.getTime()) / MS_PER_DAY;
+
+// ✅ o instante chega por parâmetro
+function calculateChannelMetrics({ videos, collectedAt }: Input) { … }
+```
+
+**Por quê.** RN-13 exige que a mesma entrada produza sempre a mesma saída. Uma
+única chamada de relógio dentro de `domain` quebra isso **sem que nenhum teste
+necessariamente falhe** — o resultado continua parecendo plausível, só muda a
+cada execução. É o tipo de defeito que só aparece quando dois usuários comparam
+relatórios do mesmo canal e veem números diferentes.
+
+`new Date(valor)` **com** argumento continua permitido: é construção pura. A
+única implementação autorizada a ler o relógio é
+`shared/infrastructure/system-clock.ts`, atrás da porta `Clock`.
+
+Esta regra vale **inclusive para arquivos de teste**, e sem exceção: um teste que
+depende de "agora" é um teste que falha sozinho um dia. Fixe a data.
+
 ---
 
 ## Exceção: arquivos de teste
@@ -143,8 +170,8 @@ Arquivos `*.test.ts` e `*.spec.ts` são **raízes de composição**: montam caso
 uso com adaptadores falsos, exatamente como `src/config/composition/` fará com os
 reais. Estão liberados de **R3, R5 e R6**.
 
-Continuam sujeitos a **R1, R2, R4 e R8**: um teste de domínio que importe React
-ou leia `process.env` continua sendo violação.
+Continuam sujeitos a **R1, R2, R4, R8 e R9**: um teste de domínio que importe
+React, leia `process.env` ou chame `new Date()` continua sendo violação.
 
 A exceção está codificada nos dois lugares — `TEST_FILES` no ESLint e `isTest`
 no teste de arquitetura.

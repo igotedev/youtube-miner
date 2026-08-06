@@ -1,4 +1,4 @@
-@AGENTS.md
+﻿@AGENTS.md
 
 # YouTube Niche Miner — instruções do projeto
 
@@ -77,7 +77,7 @@ npm run format:check
 
 ## 4. Regras de dependência
 
-Os IDs R1–R8 estão em `docs/architecture/dependency-rules.md`. Resumo:
+Os IDs R1–R9 estão em `docs/architecture/dependency-rules.md`. Resumo:
 
 - **R1/R2** — `domain` e `application` não importam React, Next ou SDKs externos.
 - **R3** — camadas internas não importam `infrastructure`. A dependência se
@@ -89,6 +89,9 @@ Os IDs R1–R8 estão em `docs/architecture/dependency-rules.md`. Resumo:
   `src/config/composition/`.
 - **R7** — um módulo não acessa tabelas de outro. Só o contrato exposto.
 - **R8** — só `src/config/` e `shared/infrastructure/` leem `process.env`.
+- **R9** — `domain` e `application` não leem o relógio nem usam aleatoriedade.
+  `new Date()` sem argumento, `Date.now()` e `Math.random()` são proibidos, e a
+  regra vale também em teste. O instante chega por parâmetro ou pela porta `Clock`.
 
 Verificadas por duas redes independentes, ambas em `npm run verify`:
 `eslint.config.mjs` e `tests/architecture/dependency-rules.test.ts`.
@@ -197,8 +200,9 @@ Regras:
 | -------------------------------------------------- | ------------------------------------------------------------------- |
 | `docs/specs/SPEC-001-product-foundation.md`        | visão, MVP, escopo, regras de negócio RN-01..RN-14, estados, riscos |
 | `docs/specs/SPEC-002-youtube-channel-reference.md` | validação e normalização de referências de canal                    |
+| `docs/specs/SPEC-003-video-analytics-engine.md`    | motor de métricas: média, mediana, frequência, outliers             |
 | `docs/architecture/overview.md`                    | camadas, fluxo da análise, limites, filas no futuro                 |
-| `docs/architecture/dependency-rules.md`            | regras R1–R8 e como verificá-las                                    |
+| `docs/architecture/dependency-rules.md`            | regras R1–R9 e como verificá-las                                    |
 | `docs/adr/ADR-001-modular-monolith.md`             | por que monólito modular                                            |
 | `docs/adr/ADR-002-nextjs-fullstack.md`             | por que Next.js nas duas pontas                                     |
 | `docs/adr/ADR-003-postgresql-supabase.md`          | por que PostgreSQL via Supabase                                     |
