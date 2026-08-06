@@ -1,0 +1,211 @@
+# YouTube Niche Miner
+
+SaaS para **encontrar, analisar e comparar canais do YouTube**. O usuário informa
+a URL de um canal e recebe uma leitura estruturada dos dados públicos daquele
+canal e de seus vídeos recentes.
+
+O valor não está no acesso ao dado — ele já é público. Está em transformar dados
+dispersos em leitura útil: o que é normal para aquele canal, o que fugiu da
+curva, com que frequência ele publica, quanto depende de um vídeo viral.
+
+O produto **não promete sucesso**, **não apresenta estimativa como dado oficial**
+e **não exibe dado indisponível como zero**.
+
+---
+
+## Estado atual
+
+> **Etapa 1 de N — fundação arquitetural. Não é um produto funcional.**
+
+O que existe:
+
+- ✅ Projeto Next.js 16 com App Router, TypeScript estrito, Tailwind 4 e ESLint
+- ✅ Seis módulos de negócio com fronteiras verificadas automaticamente
+- ✅ Contratos (portas) para YouTube, Claude, persistência e autenticação
+- ✅ Um fluxo vertical executável com adaptadores falsos, provando a arquitetura
+- ✅ Os oito estados de uma análise, definidos e testados
+- ✅ SPEC-001, quatro ADRs e documentos de arquitetura
+
+O que **não** existe:
+
+- ❌ Integração real com YouTube, Supabase ou Claude
+- ❌ Cadastro, login ou qualquer tela de análise
+- ❌ Cálculo de métricas, mediana ou outliers (só o contrato)
+- ❌ Banco de dados, migrações ou esquema
+- ❌ Extensão Chrome, pagamentos, dashboard
+
+## Stack
+
+| Camada                   | Tecnologia                 |
+| ------------------------ | -------------------------- |
+| Framework                | Next.js 16 (App Router)    |
+| Linguagem                | TypeScript 5, modo estrito |
+| Interface                | React 19, Tailwind CSS 4   |
+| Validação                | Zod 4                      |
+| Testes                   | Vitest 4                   |
+| Banco (planejado)        | PostgreSQL via Supabase    |
+| Autenticação (planejada) | Supabase Auth              |
+| Dados (planejado)        | YouTube Data API v3        |
+| IA (planejada)           | Claude API                 |
+| E2E (etapa futura)       | Playwright                 |
+
+### Dependências instaladas e por quê
+
+| Pacote                                | Tipo | Justificativa                                                                                                                     |
+| ------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `next`, `react`, `react-dom`          | prod | Framework e interface (ADR-002)                                                                                                   |
+| `zod`                                 | prod | Valida entrada de UI **e** resposta de API externa antes de virar tipo de domínio. Único validador; sem duplicar responsabilidade |
+| `typescript`, `@types/*`              | dev  | Tipagem estrita                                                                                                                   |
+| `tailwindcss`, `@tailwindcss/postcss` | dev  | Estilo                                                                                                                            |
+| `eslint`, `eslint-config-next`        | dev  | Lint e base para as regras de fronteira                                                                                           |
+| `prettier`                            | dev  | Formatação consistente                                                                                                            |
+| `vitest`                              | dev  | Testes unitários e arquiteturais                                                                                                  |
+
+**Deliberadamente ausentes nesta etapa:** `@supabase/*`, `googleapis`,
+`@anthropic-ai/sdk`, Playwright — nenhuma integração real foi iniciada; e
+`eslint-plugin-boundaries`, porque `no-restricted-imports` já é nativo do ESLint
+e cobre o caso sem dependência nova.
+
+## Requisitos locais
+
+- **Node.js 22.13 ou superior** (ou 20.19+). O `eslint-visitor-keys` exige
+  22.13+; em 22.12 o `npm install` emite `EBADENGINE` mas o projeto funciona.
+- npm 10+
+- Git
+
+## Instalação
+
+```bash
+git clone <url-do-repositorio>
+cd minerador-youtube
+npm install
+cp .env.example .env.local   # opcional nesta etapa: nada exige chave ainda
+npm run verify               # confirma que a fundação está íntegra
+npm run dev                  # http://localhost:3000
+```
+
+## Variáveis de ambiente planejadas
+
+Nenhuma é obrigatória nesta etapa — o projeto roda sem chave nenhuma. Cada SPEC
+que ativar uma integração torna as suas variáveis obrigatórias. Schema completo
+em `src/config/env.ts`.
+
+| Variável                        | Segredo? | Para quê                               |
+| ------------------------------- | :------: | -------------------------------------- |
+| `APP_URL`                       |   não    | URL base da aplicação                  |
+| `NEXT_PUBLIC_SUPABASE_URL`      |   não    | Endpoint do projeto Supabase           |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` |   não    | Chave pública, protegida por RLS       |
+| `SUPABASE_SERVICE_ROLE_KEY`     | **sim**  | Acesso administrativo — **ignora RLS** |
+| `YOUTUBE_API_KEY`               | **sim**  | YouTube Data API v3                    |
+| `YOUTUBE_DAILY_QUOTA_LIMIT`     |   não    | Teto diário de unidades de quota       |
+| `ANTHROPIC_API_KEY`             | **sim**  | Claude API                             |
+| `ANTHROPIC_MODEL`               |   não    | Modelo usado nos relatórios            |
+| `AI_MAX_OUTPUT_TOKENS`          |   não    | Teto de tokens por relatório           |
+| `ANALYSIS_FRESHNESS_HOURS`      |   não    | Janela de reuso de análise (RN-10)     |
+
+> **Segredo nunca usa o prefixo `NEXT_PUBLIC_`** — esse prefixo embute o valor no
+> bundle do navegador. `src/config/env.ts` lança se for importado no cliente, e
+> a regra R8 impede leitura de `process.env` fora de `src/config/`.
+
+## Comandos
+
+```bash
+npm run dev          # servidor de desenvolvimento
+npm run build        # build de produção
+npm start            # servir o build
+
+npm run verify       # typecheck + lint + testes  ← o comando que importa
+npm run typecheck    # tsc --noEmit
+npm run lint         # ESLint, inclui as regras de fronteira
+npm run lint:fix
+npm test             # Vitest, uma passada
+npm run test:watch
+npm run format       # Prettier
+npm run format:check
+```
+
+## Arquitetura resumida
+
+**Monólito modular** (ADR-001): uma aplicação, um deploy, seis módulos de
+negócio com fronteiras verificadas em CI.
+
+```
+presentation  →  application  →  domain
+                      ↑
+              infrastructure         (a dependência se inverte)
+```
+
+`infrastructure` implementa as portas que `application` declara. O domínio não
+sabe que Supabase, YouTube ou Claude existem — trocar qualquer um deles é
+escrever outro adaptador, sem tocar em regra de negócio.
+
+As regras de dependência (R1–R8) não são só documentação: rodam em
+`npm run verify`, por duas redes independentes — `eslint.config.mjs` e
+`tests/architecture/dependency-rules.test.ts`.
+
+Detalhes em `docs/architecture/overview.md`.
+
+## Estrutura de pastas
+
+```
+.
+├─ docs/
+│  ├─ specs/          SPEC-001 — visão, MVP, regras de negócio, riscos
+│  ├─ adr/            ADR-001..004 — decisões arquiteturais
+│  ├─ architecture/   overview.md e dependency-rules.md
+│  └─ api/            contratos HTTP (vazio nesta etapa)
+├─ src/
+│  ├─ app/            páginas e rotas (Next.js App Router)
+│  ├─ config/         env.ts (schema Zod) + composition/ (raiz de composição)
+│  ├─ shared/         domain · errors · validation · observability · infrastructure
+│  └─ modules/
+│     ├─ identity/            autenticação, usuário, sessão
+│     ├─ youtube-collection/  URL → ID oficial, coleta, quota, cache
+│     ├─ channel-analysis/    orquestra a análise e registra o estado
+│     ├─ video-analytics/     métricas objetivas e determinísticas
+│     ├─ ai-insights/         relatório textual gerado por IA
+│     └─ watchlists/          listas de canais salvos
+├─ supabase/
+│  ├─ migrations/     vazio — esquema virá em SPEC própria
+│  └─ seed.sql
+├─ tests/
+│  ├─ architecture/   verificação executável das regras R1–R8
+│  ├─ integration/    vazio
+│  └─ e2e/            vazio — Playwright em etapa futura
+├─ CLAUDE.md          instruções permanentes do projeto
+└─ AGENTS.md          notas da versão do Next.js (gerado por `next dev`)
+```
+
+Testes unitários ficam **ao lado do código** (`*.test.ts`), não em `tests/`.
+Função pura e o teste dela devem viver juntos.
+
+## Como implementar uma nova funcionalidade
+
+1. **Existe uma SPEC?** Se não, escreva antes em `docs/specs/`. Não se implementa
+   o que nenhum documento descreve.
+2. **Muda uma decisão arquitetural?** Escreva um ADR em `docs/adr/` primeiro.
+3. **`domain`** — modele os tipos e as regras puras, com teste junto.
+4. **`application`** — declare as portas e escreva o caso de uso. Dependências
+   entram pelo construtor.
+5. **`infrastructure`** — implemente os adaptadores. Valide a resposta externa
+   com Zod e traduza erros para `AppError`.
+6. **`presentation`** — página ou rota que valida a entrada e chama o caso de uso.
+7. **`src/config/composition/`** — monte o caso de uso com os adaptadores reais.
+8. **`npm run verify`** — só está pronto quando passa.
+
+Não comece pela tela: uma tela construída antes do caso de uso arrasta regra de
+negócio para dentro do componente, e de lá ela não sai mais.
+
+Detalhes e proibições em `CLAUDE.md`.
+
+## Documentação
+
+| Documento                                                      | Conteúdo                                                 |
+| -------------------------------------------------------------- | -------------------------------------------------------- |
+| [SPEC-001](docs/specs/SPEC-001-product-foundation.md)          | Visão, MVP, escopo, regras RN-01..RN-14, estados, riscos |
+| [Visão da arquitetura](docs/architecture/overview.md)          | Camadas, fluxo da análise, limites, filas no futuro      |
+| [Regras de dependência](docs/architecture/dependency-rules.md) | R1–R8 e como são verificadas                             |
+| [ADR-001](docs/adr/ADR-001-modular-monolith.md)                | Monólito modular                                         |
+| [ADR-002](docs/adr/ADR-002-nextjs-fullstack.md)                | Next.js nas duas pontas                                  |
+| [ADR-003](docs/adr/ADR-003-postgresql-supabase.md)             | PostgreSQL via Supabase                                  |
+| [ADR-004](docs/adr/ADR-004-external-integrations.md)           | Integrações atrás de contratos                           |

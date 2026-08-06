@@ -1,0 +1,227 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { describe, expect, it } from 'vitest';
+
+/**
+ * Verificacao executavel das regras de dependencia.
+ *
+ * Complementa o ESLint em vez de repeti-lo. O ESLint casa padroes contra o
+ * TEXTO do import, o que o deixa cego para caminhos relativos disfarcados
+ * (`../../infrastructure/x`) e pode ser desligado com `eslint-disable`. Aqui os
+ * imports sao RESOLVIDOS para caminhos reais no disco antes de julgar, e nao ha
+ * como suprimir a checagem sem apagar o teste.
+ *
+ * Fonte da verdade em prosa: docs/architecture/dependency-rules.md.
+ */
+
+const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'src');
+
+type Layer = 'domain' | 'application' | 'infrastructure' | 'presentation';
+
+interface SourceFile {
+  /** Caminho relativo a `src`, sempre com barra normal. */
+  readonly rel: string;
+  readonly abs: string;
+  readonly layer: Layer | null;
+  readonly moduleName: string | null;
+  readonly isTest: boolean;
+  readonly imports: readonly string[];
+}
+
+/**
+ * Um teste e uma raiz de composicao: e o lugar legitimo para montar um caso de
+ * uso com adaptadores falsos, exatamente como src/config/composition/ faz com
+ * os reais. Por isso arquivos de teste ficam de fora das regras que restringem
+ * o ACESSO A ADAPTADORES (R3, R5, R6).
+ *
+ * Eles continuam sujeitos a R1, R2, R4 e R8: um teste de dominio que importe
+ * React ou leia process.env continua sendo violacao.
+ */
+const isTestFile = (rel: string) => /\.(test|spec)\.tsx?$/.test(rel);
+
+const IMPORT_PATTERN = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g;
+const BARE_IMPORT_PATTERN = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
+
+function listSourceFiles(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return listSourceFiles(full);
+    return /\.tsx?$/.test(entry.name) ? [full] : [];
+  });
+}
+
+function extractImports(contents: string): string[] {
+  const found: string[] = [];
+  for (const pattern of [IMPORT_PATTERN, BARE_IMPORT_PATTERN]) {
+    pattern.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(contents)) !== null) {
+      const specifier = match[1];
+      if (specifier !== undefined) found.push(specifier);
+    }
+  }
+  return found;
+}
+
+function layerOf(rel: string): Layer | null {
+  const segments = rel.split('/');
+  for (const layer of ['domain', 'application', 'infrastructure', 'presentation'] as const) {
+    if (segments.includes(layer)) return layer;
+  }
+  return null;
+}
+
+function moduleOf(rel: string): string | null {
+  const segments = rel.split('/');
+  return segments[0] === 'modules' ? (segments[1] ?? null) : null;
+}
+
+const FILES: readonly SourceFile[] = listSourceFiles(SRC).map((abs) => {
+  const rel = path.relative(SRC, abs).split(path.sep).join('/');
+  return {
+    rel,
+    abs,
+    layer: layerOf(rel),
+    moduleName: moduleOf(rel),
+    isTest: isTestFile(rel),
+    imports: extractImports(readFileSync(abs, 'utf8')),
+  };
+});
+
+/**
+ * Converte um import em caminho relativo a `src`, ou `null` se apontar para
+ * fora do projeto (pacote do npm ou modulo nativo).
+ */
+function resolveToSrc(file: SourceFile, specifier: string): string | null {
+  if (specifier.startsWith('@/')) return specifier.slice(2);
+  if (!specifier.startsWith('.')) return null;
+
+  const fromDir = path.dirname(file.abs);
+  const resolved = path.resolve(fromDir, specifier);
+  const rel = path.relative(SRC, resolved);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  return rel.split(path.sep).join('/');
+}
+
+function isExternalPackage(specifier: string): boolean {
+  return !specifier.startsWith('.') && !specifier.startsWith('@/');
+}
+
+/** Descreve uma violacao de forma acionavel: arquivo + import + regra. */
+function violation(file: SourceFile, specifier: string, rule: string): string {
+  return `${rule} — src/${file.rel} importa "${specifier}"`;
+}
+
+const INNER_LAYERS: readonly Layer[] = ['domain', 'application'];
+
+const FORBIDDEN_IN_INNER_LAYERS = [
+  /^react$/,
+  /^react\//,
+  /^react-dom$/,
+  /^react-dom\//,
+  /^next$/,
+  /^next\//,
+  /^@supabase\//,
+  /^@anthropic-ai\//,
+  /^googleapis$/,
+  /^google-auth-library$/,
+  /^server-only$/,
+  /^client-only$/,
+];
+
+describe('regras de dependencia', () => {
+  it('encontra os arquivos de src para analisar', () => {
+    // Guarda contra um falso verde: se a varredura quebrar e devolver lista
+    // vazia, todos os testes abaixo passariam sem verificar nada.
+    expect(FILES.length).toBeGreaterThan(10);
+    expect(FILES.some((f) => f.layer === 'domain')).toBe(true);
+    expect(FILES.some((f) => f.layer === 'application')).toBe(true);
+  });
+
+  it('R1/R2 — domain e application nao dependem de React, Next ou SDKs externos', () => {
+    const violations = FILES.filter(
+      (f) => f.layer !== null && INNER_LAYERS.includes(f.layer),
+    ).flatMap((file) =>
+      file.imports
+        .filter((s) => isExternalPackage(s))
+        .filter((s) => FORBIDDEN_IN_INNER_LAYERS.some((p) => p.test(s)))
+        .map((s) => violation(file, s, 'R1/R2')),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('R3 — nenhuma camada interna importa infrastructure', () => {
+    const violations = FILES.filter(
+      (f) => !f.isTest && f.layer !== null && INNER_LAYERS.includes(f.layer),
+    ).flatMap((file) =>
+      file.imports
+        .map((s) => ({ s, target: resolveToSrc(file, s) }))
+        .filter(({ target }) => target !== null && target.split('/').includes('infrastructure'))
+        .map(({ s }) => violation(file, s, 'R3')),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('R4 — domain e application nao importam presentation', () => {
+    const violations = FILES.filter(
+      (f) => f.layer !== null && INNER_LAYERS.includes(f.layer),
+    ).flatMap((file) =>
+      file.imports
+        .map((s) => ({ s, target: resolveToSrc(file, s) }))
+        .filter(({ target }) => target !== null && target.split('/').includes('presentation'))
+        .map(({ s }) => violation(file, s, 'R4')),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('R5 — modulos so se alcancam pelo barrel publico', () => {
+    const violations = FILES.filter((f) => !f.isTest && f.moduleName !== null).flatMap((file) =>
+      file.imports
+        .map((s) => ({ s, target: resolveToSrc(file, s) }))
+        .filter(({ target }) => {
+          if (target === null) return false;
+          const segments = target.split('/');
+          if (segments[0] !== 'modules') return false;
+          const targetModule = segments[1];
+          // Dentro do proprio modulo, qualquer caminho e permitido.
+          if (targetModule === file.moduleName) return false;
+          // Fora dele, so `modules/<nome>` ou `modules/<nome>/index`.
+          return segments.length > 2 || (segments.length === 3 && segments[2] !== 'index');
+        })
+        .map(({ s }) => violation(file, s, 'R5')),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('R6 — presentation nao importa infrastructure', () => {
+    const violations = FILES.filter(
+      (f) => !f.isTest && (f.layer === 'presentation' || f.rel.startsWith('app/')),
+    ).flatMap((file) =>
+      file.imports
+        .map((s) => ({ s, target: resolveToSrc(file, s) }))
+        .filter(({ target }) => target !== null && target.split('/').includes('infrastructure'))
+        .map(({ s }) => violation(file, s, 'R6')),
+    );
+
+    expect(violations).toEqual([]);
+  });
+
+  it('R8 — apenas src/config e shared/infrastructure leem process.env', () => {
+    // Segredos entram por um unico lugar (src/config/env.ts). Ler process.env
+    // espalhado pelo codigo e como as chaves acabam vazando para o cliente.
+    const allowed = (rel: string) =>
+      rel.startsWith('config/') || rel.startsWith('shared/infrastructure/');
+
+    const violations = FILES.filter((f) => !allowed(f.rel))
+      .filter((f) => /process\.env/.test(readFileSync(f.abs, 'utf8')))
+      .map((f) => `R8 — src/${f.rel} le process.env diretamente`);
+
+    expect(violations).toEqual([]);
+  });
+});

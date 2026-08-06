@@ -1,0 +1,10 @@
+-- Dados de desenvolvimento local.
+--
+-- Vazio de proposito: nenhuma tabela existe ainda. O esquema sera definido na
+-- SPEC de persistencia, que devera manter em tabelas SEPARADAS:
+--   * o snapshot bruto coletado do YouTube (RN-04);
+--   * as metricas calculadas (RN-04);
+--   * os relatorios gerados por IA (RN-05).
+--
+-- Nunca coloque credencial, chave ou dado de usuario real neste arquivo — ele
+-- e versionado.
