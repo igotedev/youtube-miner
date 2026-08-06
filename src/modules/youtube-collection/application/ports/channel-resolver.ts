@@ -8,14 +8,17 @@ import type { YouTubeChannelId } from '../../domain/youtube-channel';
  * consultar o YouTube — por isso resolucao e assincrona e mora atras de uma
  * porta, e nao de uma funcao pura.
  *
- * A normalizacao sintatica da URL (a parte que E pura e testavel offline) sera
- * uma funcao de dominio deste modulo, definida na SPEC-002. Nesta etapa de
- * fundacao ela nao foi implementada de proposito.
+ * A parte pura e testavel offline ja existe: `parseYouTubeChannelReference`
+ * (SPEC-002) normaliza a entrada e devolve uma `YouTubeChannelReference`
+ * discriminada. O adaptador desta porta devera usa-la primeiro e so ir a rede
+ * quando o `kind` NAO for `channel_id` — nesse caso o ID ja esta em maos e
+ * nenhuma unidade de quota precisa ser gasta.
  */
 export interface ChannelResolver {
   /**
-   * @throws {ValidationError} URL sintaticamente invalida ou de outro dominio.
-   * @throws {NotFoundError} URL valida, mas sem canal correspondente.
+   * @throws {InvalidChannelReferenceError} Entrada nao reconhecida como
+   *   referencia de canal. Detectavel offline, antes de qualquer chamada.
+   * @throws {NotFoundError} Referencia valida, mas sem canal correspondente.
    * @throws {ExternalServiceError} Falha ao consultar o YouTube.
    */
   resolveChannelId(rawUrl: string): Promise<YouTubeChannelId>;

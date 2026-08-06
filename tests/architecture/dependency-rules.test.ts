@@ -27,6 +27,8 @@ interface SourceFile {
   readonly layer: Layer | null;
   readonly moduleName: string | null;
   readonly isTest: boolean;
+  /** Codigo sem comentarios. As checagens de texto usam este valor, nunca o bruto. */
+  readonly code: string;
   readonly imports: readonly string[];
 }
 
@@ -50,6 +52,63 @@ function listSourceFiles(dir: string): string[] {
     if (entry.isDirectory()) return listSourceFiles(full);
     return /\.tsx?$/.test(entry.name) ? [full] : [];
   });
+}
+
+/**
+ * Remove comentarios, preservando literais de string.
+ *
+ * Necessario porque as checagens abaixo trabalham sobre texto. Sem isso, um
+ * comentario que apenas MENCIONA `process.env` ou um import — como a
+ * documentacao de uma funcao pura explicando o que ela nao faz — seria acusado
+ * como violacao real. Um guarda que acusa o inocente e abandonado.
+ *
+ * A varredura precisa reconhecer strings, e nao apenas apagar tudo depois de
+ * `//`: uma URL em um caso de teste (`'https://youtube.com/@x'`) contem `//` e
+ * seria truncada no meio.
+ */
+function stripComments(source: string): string {
+  let out = '';
+  let i = 0;
+
+  while (i < source.length) {
+    const char = source[i];
+    const next = source[i + 1];
+
+    if (char === '/' && next === '/') {
+      while (i < source.length && source[i] !== '\n') i += 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      i += 2;
+      while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i += 1;
+      i += 2;
+      continue;
+    }
+
+    if (char === '"' || char === "'" || char === '`') {
+      const quote = char;
+      out += char;
+      i += 1;
+      while (i < source.length) {
+        if (source[i] === '\\') {
+          out += source.slice(i, i + 2);
+          i += 2;
+          continue;
+        }
+        out += source[i];
+        const closed = source[i] === quote;
+        i += 1;
+        if (closed) break;
+      }
+      continue;
+    }
+
+    out += char;
+    i += 1;
+  }
+
+  return out;
 }
 
 function extractImports(contents: string): string[] {
@@ -80,13 +139,15 @@ function moduleOf(rel: string): string | null {
 
 const FILES: readonly SourceFile[] = listSourceFiles(SRC).map((abs) => {
   const rel = path.relative(SRC, abs).split(path.sep).join('/');
+  const code = stripComments(readFileSync(abs, 'utf8'));
   return {
     rel,
     abs,
     layer: layerOf(rel),
     moduleName: moduleOf(rel),
     isTest: isTestFile(rel),
-    imports: extractImports(readFileSync(abs, 'utf8')),
+    code,
+    imports: extractImports(code),
   };
 });
 
@@ -130,6 +191,26 @@ const FORBIDDEN_IN_INNER_LAYERS = [
   /^server-only$/,
   /^client-only$/,
 ];
+
+describe('stripComments', () => {
+  // Guarda do guarda: se o filtro de comentarios apagar codigo de verdade, as
+  // regras abaixo passariam a nao detectar nada e ninguem perceberia.
+  it('remove comentarios de linha e de bloco', () => {
+    expect(stripComments('const a = 1; // process.env.X')).not.toContain('process.env');
+    expect(stripComments('/* usa process.env */ const a = 1;')).not.toContain('process.env');
+  });
+
+  it('preserva codigo real', () => {
+    expect(stripComments('// nota\nconst k = process.env.API_KEY;')).toContain('process.env');
+    expect(stripComments("/* nota */\nimport x from './y';")).toContain("from './y'");
+  });
+
+  it('nao trunca URLs dentro de strings', () => {
+    const source = "const url = 'https://youtube.com/@canal'; const k = process.env.X;";
+    expect(stripComments(source)).toContain('process.env');
+    expect(stripComments(source)).toContain('https://youtube.com/@canal');
+  });
+});
 
 describe('regras de dependencia', () => {
   it('encontra os arquivos de src para analisar', () => {
@@ -219,7 +300,7 @@ describe('regras de dependencia', () => {
       rel.startsWith('config/') || rel.startsWith('shared/infrastructure/');
 
     const violations = FILES.filter((f) => !allowed(f.rel))
-      .filter((f) => /process\.env/.test(readFileSync(f.abs, 'utf8')))
+      .filter((f) => /process\s*\.\s*env/.test(f.code))
       .map((f) => `R8 — src/${f.rel} le process.env diretamente`);
 
     expect(violations).toEqual([]);

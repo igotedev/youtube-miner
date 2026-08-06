@@ -193,15 +193,16 @@ Regras:
 
 ## 10. Documentos
 
-| Arquivo                                     | Para quê                                                            |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| `docs/specs/SPEC-001-product-foundation.md` | visão, MVP, escopo, regras de negócio RN-01..RN-14, estados, riscos |
-| `docs/architecture/overview.md`             | camadas, fluxo da análise, limites, filas no futuro                 |
-| `docs/architecture/dependency-rules.md`     | regras R1–R8 e como verificá-las                                    |
-| `docs/adr/ADR-001-modular-monolith.md`      | por que monólito modular                                            |
-| `docs/adr/ADR-002-nextjs-fullstack.md`      | por que Next.js nas duas pontas                                     |
-| `docs/adr/ADR-003-postgresql-supabase.md`   | por que PostgreSQL via Supabase                                     |
-| `docs/adr/ADR-004-external-integrations.md` | por que integrações atrás de contratos                              |
+| Arquivo                                            | Para quê                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| `docs/specs/SPEC-001-product-foundation.md`        | visão, MVP, escopo, regras de negócio RN-01..RN-14, estados, riscos |
+| `docs/specs/SPEC-002-youtube-channel-reference.md` | validação e normalização de referências de canal                    |
+| `docs/architecture/overview.md`                    | camadas, fluxo da análise, limites, filas no futuro                 |
+| `docs/architecture/dependency-rules.md`            | regras R1–R8 e como verificá-las                                    |
+| `docs/adr/ADR-001-modular-monolith.md`             | por que monólito modular                                            |
+| `docs/adr/ADR-002-nextjs-fullstack.md`             | por que Next.js nas duas pontas                                     |
+| `docs/adr/ADR-003-postgresql-supabase.md`          | por que PostgreSQL via Supabase                                     |
+| `docs/adr/ADR-004-external-integrations.md`        | por que integrações atrás de contratos                              |
 
 **Consulte a SPEC antes de implementar. Registre um ADR antes de mudar
 arquitetura.** Documento desatualizado é pior que documento ausente — se o

@@ -24,12 +24,16 @@ O que existe:
 - ✅ Contratos (portas) para YouTube, Claude, persistência e autenticação
 - ✅ Um fluxo vertical executável com adaptadores falsos, provando a arquitetura
 - ✅ Os oito estados de uma análise, definidos e testados
-- ✅ SPEC-001, quatro ADRs e documentos de arquitetura
+- ✅ **Validação e normalização de referências de canal** (SPEC-002): função pura
+  que reconhece ID oficial, handle, `/c/` e `/user/`, e recusa vídeo, Shorts,
+  playlist, busca e domínio não autorizado — tudo offline
+- ✅ SPEC-001, SPEC-002, quatro ADRs e documentos de arquitetura
 
 O que **não** existe:
 
 - ❌ Integração real com YouTube, Supabase ou Claude
 - ❌ Cadastro, login ou qualquer tela de análise
+- ❌ Resolução de handle ou `/c/` para o ID oficial (exige rede)
 - ❌ Cálculo de métricas, mediana ou outliers (só o contrato)
 - ❌ Banco de dados, migrações ou esquema
 - ❌ Extensão Chrome, pagamentos, dashboard
@@ -203,6 +207,7 @@ Detalhes e proibições em `CLAUDE.md`.
 | Documento                                                      | Conteúdo                                                 |
 | -------------------------------------------------------------- | -------------------------------------------------------- |
 | [SPEC-001](docs/specs/SPEC-001-product-foundation.md)          | Visão, MVP, escopo, regras RN-01..RN-14, estados, riscos |
+| [SPEC-002](docs/specs/SPEC-002-youtube-channel-reference.md)   | Validação e normalização de referências de canal         |
 | [Visão da arquitetura](docs/architecture/overview.md)          | Camadas, fluxo da análise, limites, filas no futuro      |
 | [Regras de dependência](docs/architecture/dependency-rules.md) | R1–R8 e como são verificadas                             |
 | [ADR-001](docs/adr/ADR-001-modular-monolith.md)                | Monólito modular                                         |
