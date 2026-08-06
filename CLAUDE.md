@@ -202,6 +202,7 @@ Regras:
 | `docs/specs/SPEC-002-youtube-channel-reference.md`              | validação e normalização de referências de canal                    |
 | `docs/specs/SPEC-003-video-analytics-engine.md`                 | motor de métricas: média, mediana, frequência, outliers             |
 | `docs/specs/SPEC-004-postgresql-persistence.md`                 | esquema, RLS, reuso de coletas, concorrência, idempotência          |
+| `docs/specs/SPEC-005-analysis-metrics-persistence.md`           | cálculo e persistência das métricas; reuso do cálculo               |
 | `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                 |
 | `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                    |
 | `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                            |

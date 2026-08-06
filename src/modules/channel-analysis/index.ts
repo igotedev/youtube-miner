@@ -2,6 +2,7 @@
 export {
   ANALYSIS_STATUSES,
   TERMINAL_ANALYSIS_STATUSES,
+  canCalculateMetrics,
   isReusableStatus,
   isTerminalStatus,
   type AnalysisStatus,
@@ -13,3 +14,8 @@ export {
   type StartChannelAnalysisDependencies,
   type StartChannelAnalysisInput,
 } from './application/use-cases/start-channel-analysis';
+export {
+  CalculateAnalysisMetrics,
+  type CalculateAnalysisMetricsDependencies,
+  type CalculateAnalysisMetricsInput,
+} from './application/use-cases/calculate-analysis-metrics';

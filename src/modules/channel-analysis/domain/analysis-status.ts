@@ -40,3 +40,18 @@ export function isTerminalStatus(status: AnalysisStatus): boolean {
 export function isReusableStatus(status: AnalysisStatus): boolean {
   return status === 'completed' || status === 'partially_completed';
 }
+
+/**
+ * A analise esta em ponto de calcular metricas?
+ *
+ * `collecting_videos` e o caminho normal: a coleta terminou. `calculating_metrics`
+ * tambem passa, para que uma execucao interrompida no meio possa ser retomada
+ * sem ficar presa — o calculo e deterministico e refaze-lo nao produz efeito
+ * colateral.
+ *
+ * Qualquer outro estado significa etapa fora de ordem: ou a coleta nao acabou,
+ * ou a analise ja terminou.
+ */
+export function canCalculateMetrics(status: AnalysisStatus): boolean {
+  return status === 'collecting_videos' || status === 'calculating_metrics';
+}

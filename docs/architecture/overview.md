@@ -117,10 +117,20 @@ Três observações que valem mais que o diagrama:
 
 ### Estado atual do fluxo
 
-`StartChannelAnalysis` implementa 3 → 6 e **para em `collecting_videos`**. Não
-avança para `completed` porque o motor de métricas (SPEC-003) e o adaptador
-Claude não existem — fingir que passaram produziria uma análise mentirosa. O
-teste do caso de uso trava esse limite explicitamente.
+Dois casos de uso cobrem os passos 3 a 9:
+
+- **`StartChannelAnalysis`** — 3 → 7, parando em `collecting_videos`. Antes de
+  coletar, consulta uma coleta recente do mesmo canal (RN-10) e a reaproveita.
+- **`CalculateAnalysisMetrics`** (SPEC-005) — 8 → 9, terminando em
+  `partially_completed`. Reaproveita o cálculo se outra análise já rodou aquela
+  coleta na mesma versão do algoritmo.
+
+O passo 10 não existe: sem adaptador Claude, `partially_completed` é o destino
+honesto — dados objetivos válidos, relatório ausente (RN-09). Marcar `completed`
+afirmaria que um relatório foi produzido.
+
+Os dois são chamados em sequência por quem os monta. Encadeá-los automaticamente
+é assunto da SPEC de filas.
 
 ## 5. Limites entre módulos
 

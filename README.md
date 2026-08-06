@@ -35,7 +35,10 @@ O que existe:
   idempotência — **migração escrita, ainda não executada** (exige Docker)
 - ✅ Mapeadores de persistência validados: `bigint`, datas, estados e JSON de
   métricas, com recusa de linha corrompida
-- ✅ SPEC-001 a SPEC-004, cinco ADRs e documentos de arquitetura
+- ✅ **Pipeline de análise fechado** (SPEC-005): da URL até as métricas
+  persistidas, com reuso de coleta e de cálculo entre usuários — verificado
+  ponta a ponta com adaptadores em memória
+- ✅ SPEC-001 a SPEC-005, cinco ADRs e documentos de arquitetura
 
 O que **não** existe:
 
@@ -232,6 +235,7 @@ Detalhes e proibições em `CLAUDE.md`.
 | [SPEC-002](docs/specs/SPEC-002-youtube-channel-reference.md)             | Validação e normalização de referências de canal         |
 | [SPEC-003](docs/specs/SPEC-003-video-analytics-engine.md)                | Motor de métricas de vídeos e canais                     |
 | [SPEC-004](docs/specs/SPEC-004-postgresql-persistence.md)                | Persistência, snapshots e reuso de análises              |
+| [SPEC-005](docs/specs/SPEC-005-analysis-metrics-persistence.md)          | Cálculo e persistência das métricas da análise           |
 | [Visão da arquitetura](docs/architecture/overview.md)                    | Camadas, fluxo da análise, limites, filas no futuro      |
 | [Regras de dependência](docs/architecture/dependency-rules.md)           | R1–R9 e como são verificadas                             |
 | [ADR-001](docs/adr/ADR-001-modular-monolith.md)                          | Monólito modular                                         |
