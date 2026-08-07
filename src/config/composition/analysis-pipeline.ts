@@ -12,6 +12,9 @@ import {
   createFakeYouTubeChannelSource,
 } from '@/modules/youtube-collection/infrastructure/fake/fake-youtube-source';
 import { InMemoryCollectionRunRepository } from '@/modules/youtube-collection/infrastructure/memory/in-memory-collection-run-repository';
+import { YouTubeApiClient } from '@/modules/youtube-collection/infrastructure/youtube-data-api/youtube-api-client';
+import { YouTubeDataApiChannelResolver } from '@/modules/youtube-collection/infrastructure/youtube-data-api/youtube-data-api-channel-resolver';
+import { YouTubeDataApiChannelSource } from '@/modules/youtube-collection/infrastructure/youtube-data-api/youtube-data-api-channel-source';
 import { cryptoUuidGenerator } from '@/shared/infrastructure/crypto-uuid-generator';
 import { systemClock } from '@/shared/infrastructure/system-clock';
 import { consoleLogger } from '@/shared/observability';
@@ -40,11 +43,14 @@ import { getServerEnv } from '../env';
  */
 
 /**
- * Modo da composicao ativa.
+ * Origem dos dados na composicao ativa.
  *
  * Sai daqui para a tela. A apresentacao NAO decide se os dados sao reais — ela
  * exibe o que a composicao declara. Um literal na tela poderia sobreviver a
  * troca dos adaptadores e passar a mentir.
+ *
+ * `live` afirma UMA coisa: os numeros vieram da YouTube Data API. Nao afirma
+ * nada sobre persistencia, que continua em memoria ate o banco entrar.
  */
 export type CompositionMode = 'demonstration' | 'live';
 
@@ -104,6 +110,28 @@ function getStores(): InMemoryStores {
   return created;
 }
 
+/**
+ * Monta a coleta contra a YouTube Data API v3.
+ *
+ * O cliente e criado por chamada, e nao guardado: ele carrega o contador de
+ * quota do processo, e um contador compartilhado entre requisicoes exigiria
+ * decidir quando zera-lo. O freio real e diario e mora no Google; este e local
+ * e existe so para que um defeito em laco nao queime a cota do dia.
+ */
+function buildLiveCollection(apiKey: string, dailyQuotaLimit: number) {
+  const client = new YouTubeApiClient({
+    apiKey,
+    logger: consoleLogger,
+    dailyQuotaLimit,
+  });
+
+  return {
+    mode: 'live' as const,
+    channelResolver: new YouTubeDataApiChannelResolver(client),
+    channelSource: new YouTubeDataApiChannelSource(client, consoleLogger),
+  };
+}
+
 /** Descarta o estado acumulado. Existe para teste; nao ha chamador em producao. */
 export function resetDemonstrationStores(): void {
   const scope = globalThis as GlobalWithStores;
@@ -128,12 +156,29 @@ export function buildAnalysisPipeline(): AnalysisPipeline {
     collectionRuns: stores.collectionRuns,
   } as const;
 
+  /**
+   * A chave decide a origem dos dados.
+   *
+   * Ausente, a aplicacao continua subindo com o fixture — o projeto tem de
+   * rodar sem chave nenhuma. Presente, a coleta vai a YouTube Data API e o
+   * aviso de demonstracao some da tela, porque deixa de ser verdade.
+   */
+  const apiKey = env.YOUTUBE_API_KEY;
+  const collection =
+    apiKey === undefined
+      ? {
+          mode: 'demonstration' as const,
+          channelResolver: createFakeChannelResolver(),
+          channelSource: createFakeYouTubeChannelSource(),
+        }
+      : buildLiveCollection(apiKey, env.YOUTUBE_DAILY_QUOTA_LIMIT);
+
   return {
-    mode: 'demonstration',
+    mode: collection.mode,
     start: new StartChannelAnalysis({
       ...shared,
-      channelResolver: createFakeChannelResolver(),
-      channelSource: createFakeYouTubeChannelSource(),
+      channelResolver: collection.channelResolver,
+      channelSource: collection.channelSource,
       analysisFreshnessHours: env.ANALYSIS_FRESHNESS_HOURS,
     }),
     calculateMetrics: new CalculateAnalysisMetrics({

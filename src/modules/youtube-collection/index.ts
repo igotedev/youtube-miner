@@ -7,6 +7,11 @@
  */
 export type { YouTubeChannel, YouTubeChannelId } from './domain/youtube-channel';
 export type { VideoFormat, YouTubeVideo, YouTubeVideoId } from './domain/youtube-video';
+export {
+  SHORTS_MAX_DURATION_SECONDS,
+  classifyVideoFormat,
+  parseIso8601Duration,
+} from './domain/video-duration';
 
 // --- Referencia de canal (SPEC-002) ---
 export {
