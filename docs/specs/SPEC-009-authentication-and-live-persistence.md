@@ -74,7 +74,7 @@ Em **três camadas independentes**, e a de cima é a mais fraca de propósito:
 
 | Camada                             | O que faz                                         | Vale como segurança? |
 | ---------------------------------- | ------------------------------------------------- | -------------------- |
-| `src/proxy.ts`                     | redireciona quem não tem sessão                   | **Não** — navegação  |
+| `src/proxy.ts`                     | redireciona **navegação** sem sessão              | **Não** — navegação  |
 | Server Action / página             | `getCurrentUser()` antes de qualquer trabalho     | **Sim**              |
 | Assinatura da porta + RLS no banco | `findById(id, ownerId)` não aceita busca sem dono | **Sim**              |
 
@@ -82,6 +82,21 @@ O proxy não é a fronteira de autorização. O motivo completo está no ADR-006
 item 4; em resumo: um ponto único de verificação longe do recurso protegido é uma
 classe de defeito, porque toda rota nova que o `matcher` não cobrir nasce
 desprotegida.
+
+### O proxy só redireciona GET, e isso não é detalhe
+
+Um POST segue em frente mesmo sem sessão. Server Actions são POST, e o cliente
+do Next espera uma resposta de ação — redirecionar uma delas devolve o HTML da
+tela de acesso, que o cliente não sabe interpretar. A página quebra com
+_"An unexpected response was received from the server"_, sem nenhuma pista.
+
+Não é cenário exótico: **a sessão expira em uma hora**, o usuário deixa a aba
+aberta e clica em Analisar.
+
+Deixar o POST passar não abre nada. A verificação que vale está dentro da ação,
+que chama `getCurrentUser()` antes de qualquer trabalho e responde _"sua sessão
+expirou"_ — a mensagem que o usuário precisa ver. Redirecionar um POST era o
+proxy excedendo o próprio papel.
 
 `getCurrentUser()` usa `getUser()`, que **verifica o token contra o servidor
 Auth**. Nunca `getSession()`, que devolveria o conteúdo do cookie sem verificar —

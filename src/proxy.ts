@@ -64,6 +64,25 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   if (!isProtected || isAuthenticated) return response;
 
+  /**
+   * SO REDIRECIONA NAVEGACAO. Um POST segue em frente, mesmo sem sessao.
+   *
+   * Server Actions sao POST, e o cliente do Next espera uma resposta de acao.
+   * Redirecionar uma delas devolve HTML da tela de acesso, o cliente nao sabe
+   * interpretar aquilo e a pagina quebra com "An unexpected response was
+   * received from the server" — sem nenhuma pista do que aconteceu.
+   *
+   * E o cenario comum, nao exotico: a sessao expira em uma hora, o usuario deixa
+   * a aba aberta e clica em Analisar.
+   *
+   * Deixar passar nao abre nada. A verificacao que vale esta DENTRO da acao, que
+   * chama `getCurrentUser()` antes de qualquer trabalho e responde "sua sessao
+   * expirou" — a mensagem que o usuario precisa ver. O proxy nunca foi a
+   * fronteira de autorizacao (ADR-006, item 4); redirecionar um POST era ele
+   * excedendo o proprio papel.
+   */
+  if (request.method !== 'GET') return response;
+
   const destination = request.nextUrl.clone();
   destination.pathname = SIGN_IN_PATH;
   destination.search = '';
