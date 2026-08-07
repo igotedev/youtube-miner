@@ -1,9 +1,10 @@
+import Link from 'next/link';
+
 /**
- * Pagina de fundacao.
+ * Pagina inicial.
  *
- * Deliberadamente estatica e sem regra de negocio: esta etapa entrega a
- * fundacao arquitetural, nao funcionalidades. A tela de analise de canais so
- * sera construida quando a SPEC correspondente existir.
+ * Estatica e sem regra de negocio. A execucao do pipeline vive em `/analise`
+ * (SPEC-006), atras de uma Server Action.
  */
 
 const MODULES = [
@@ -28,8 +29,15 @@ export default function HomePage() {
         <h1 className="text-3xl font-semibold text-balance">YouTube Niche Miner</h1>
         <p className="text-muted">
           Plataforma para encontrar, analisar e comparar canais do YouTube a partir de dados
-          publicos. Nenhuma funcionalidade do MVP foi implementada ainda.
+          publicos. O pipeline de analise ja executa ponta a ponta, com dados de demonstracao — o
+          adaptador da YouTube Data API ainda nao existe.
         </p>
+        <Link
+          href="/analise"
+          className="w-fit rounded-md border border-border px-4 py-2 text-sm font-medium"
+        >
+          Analisar um canal
+        </Link>
       </header>
 
       <section className="flex flex-col gap-3">

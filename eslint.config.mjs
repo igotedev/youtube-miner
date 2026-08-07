@@ -130,6 +130,36 @@ const NONDETERMINISTIC_SYNTAX = [
   },
 ];
 
+/**
+ * Excecao da raiz de composicao (R5/R6).
+ *
+ * `src/config/composition/` monta os casos de uso com adaptadores CONCRETOS, e
+ * para isso precisa alcancar `infrastructure` — que os barrels nao reexportam,
+ * de proposito: adaptador nao e contrato publico de modulo.
+ *
+ * E a mesma excecao ja concedida aos arquivos de teste, e estes dois sao os
+ * unicos lugares que a tem. Sem ela, a alternativa seria reexportar adaptadores
+ * nos barrels, o que tornaria qualquer arquivo capaz de instanciar um cliente
+ * Supabase — exatamente o que a R6 existe para impedir.
+ *
+ * A excecao e ESTREITA: libera apenas `infrastructure`. `domain` e `application`
+ * de outro modulo continuam acessiveis so pelo barrel publico.
+ */
+const COMPOSITION_ROOT_FORBIDDEN = [
+  {
+    group: [
+      '@/modules/*/domain',
+      '@/modules/*/domain/**',
+      '@/modules/*/application',
+      '@/modules/*/application/**',
+      '@/modules/*/presentation',
+      '@/modules/*/presentation/**',
+    ],
+    message:
+      'A raiz de composicao alcanca `infrastructure`, mas nao o domain/application de outro modulo — esses vem do barrel publico `@/modules/<nome>`. Regra R5 em docs/architecture/dependency-rules.md.',
+  },
+];
+
 /** R6: presentation consome casos de uso, nao instancia adaptadores. */
 const PRESENTATION_FORBIDDEN = [
   CROSS_MODULE_DEEP_IMPORT,
@@ -144,7 +174,18 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
 
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'coverage/**', 'next-env.d.ts']),
+  // `supabase/.temp/` guarda o bundle do edge runtime que o CLI gera ao subir a
+  // stack local. E codigo de terceiro, minificado, e nao passa pelas nossas
+  // regras — nem deveria.
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'build/**',
+    'coverage/**',
+    'next-env.d.ts',
+    'supabase/.temp/**',
+    'supabase/.branches/**',
+  ]),
 
   {
     name: 'niche-miner/module-boundaries',
@@ -173,9 +214,25 @@ const eslintConfig = defineConfig([
 
   {
     name: 'niche-miner/presentation-boundaries',
-    files: ['src/app/**/*.ts', 'src/app/**/*.tsx', 'src/**/presentation/**/*.tsx'],
+    files: [
+      'src/app/**/*.ts',
+      'src/app/**/*.tsx',
+      'src/**/presentation/**/*.ts',
+      'src/**/presentation/**/*.tsx',
+    ],
     rules: {
       'no-restricted-imports': ['error', { patterns: PRESENTATION_FORBIDDEN }],
+    },
+  },
+
+  {
+    // Depois de module-boundaries de proposito: substitui a regra para a raiz de
+    // composicao, que e o unico lugar do codigo de producao autorizado a
+    // instanciar adaptadores.
+    name: 'niche-miner/composition-root',
+    files: ['src/config/composition/**/*.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: COMPOSITION_ROOT_FORBIDDEN }],
     },
   },
 

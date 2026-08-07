@@ -43,6 +43,19 @@ interface SourceFile {
  */
 const isTestFile = (rel: string) => /\.(test|spec)\.tsx?$/.test(rel);
 
+/**
+ * A raiz de composicao e a OUTRA excecao, e a unica no codigo de producao.
+ *
+ * Monta os casos de uso com adaptadores concretos, e por isso alcanca
+ * `infrastructure`, que os barrels nao reexportam de proposito. A excecao e
+ * estreita: vale so para `infrastructure`. O domain/application de outro modulo
+ * continua vindo do barrel publico.
+ *
+ * Mesma excecao em eslint.config.mjs (bloco `niche-miner/composition-root`) —
+ * as duas redes tem de concordar.
+ */
+const isCompositionRoot = (rel: string) => rel.startsWith('config/composition/');
+
 const IMPORT_PATTERN = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s*['"]([^'"]+)['"]/g;
 const BARE_IMPORT_PATTERN = /(?:^|\n)\s*import\s*['"]([^'"]+)['"]/g;
 
@@ -261,7 +274,10 @@ describe('regras de dependencia', () => {
   });
 
   it('R5 — modulos so se alcancam pelo barrel publico', () => {
-    const violations = FILES.filter((f) => !f.isTest && f.moduleName !== null).flatMap((file) =>
+    // Vale para TODO codigo de producao, inclusive o que vive fora de
+    // `modules/` — `src/app/` alcancando `@/modules/x/domain/y` e a mesma
+    // violacao. Antes da SPEC-006 nao havia arquivo assim para pegar.
+    const violations = FILES.filter((f) => !f.isTest).flatMap((file) =>
       file.imports
         .map((s) => ({ s, target: resolveToSrc(file, s) }))
         .filter(({ target }) => {
@@ -271,6 +287,8 @@ describe('regras de dependencia', () => {
           const targetModule = segments[1];
           // Dentro do proprio modulo, qualquer caminho e permitido.
           if (targetModule === file.moduleName) return false;
+          // Excecao estreita da raiz de composicao: so `infrastructure`.
+          if (isCompositionRoot(file.rel) && segments.includes('infrastructure')) return false;
           // Fora dele, so `modules/<nome>` ou `modules/<nome>/index`.
           return segments.length > 2 || (segments.length === 3 && segments[2] !== 'index');
         })
@@ -278,6 +296,26 @@ describe('regras de dependencia', () => {
     );
 
     expect(violations).toEqual([]);
+  });
+
+  it('R6 — so a raiz de composicao instancia adaptadores no codigo de producao', () => {
+    // Afirmacao POSITIVA, complementar a R3 e a R6. As duas dizem quem NAO pode
+    // importar infrastructure; esta diz quem pode — e a lista tem um item.
+    // Sem ela, um arquivo novo em `src/config/` ou `src/shared/` poderia montar
+    // um cliente Supabase sem cair em nenhuma das outras regras.
+    const importers = FILES.filter((f) => !f.isTest)
+      .filter((file) =>
+        file.imports
+          .map((s) => resolveToSrc(file, s))
+          .some((target) => target !== null && target.split('/').includes('infrastructure')),
+      )
+      .map((f) => f.rel)
+      // `infrastructure` importando a si mesma e legitimo: um adaptador usa o
+      // cliente compartilhado e os mapeadores de linha.
+      .filter((rel) => !rel.split('/').includes('infrastructure'))
+      .filter((rel) => !isCompositionRoot(rel));
+
+    expect(importers).toEqual([]);
   });
 
   it('R6 — presentation nao importa infrastructure', () => {

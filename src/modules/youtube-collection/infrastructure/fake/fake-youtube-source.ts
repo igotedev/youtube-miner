@@ -3,6 +3,7 @@ import { NotFoundError } from '@/shared/errors';
 import type { ChannelResolver } from '../../application/ports/channel-resolver';
 import type { YouTubeChannelSource } from '../../application/ports/youtube-channel-source';
 import type { YouTubeChannel, YouTubeChannelId } from '../../domain/youtube-channel';
+import { parseYouTubeChannelReference } from '../../domain/youtube-channel-reference';
 import type { YouTubeVideo, YouTubeVideoId } from '../../domain/youtube-video';
 
 /**
@@ -122,12 +123,26 @@ const FIXTURE_VIDEOS: readonly YouTubeVideo[] = VIDEO_SEEDS.map((seed) => ({
   commentCount: null,
 }));
 
-/** Aceita qualquer URL nao vazia e devolve sempre o canal do fixture. */
+/**
+ * Valida a entrada com o parser da SPEC-002 e devolve sempre o canal do fixture.
+ *
+ * A validacao NAO e decoracao. `parseYouTubeChannelReference` rejeita host
+ * estranho, URL de video, texto solto e entrada vazia — tudo offline, antes de
+ * qualquer I/O. E o desenho descrito na porta `ChannelResolver`: a parte pura
+ * roda primeiro, e so o que sobra justifica ir a rede.
+ *
+ * O adaptador real reaproveita exatamente este primeiro passo; o que muda e o
+ * segundo, quando o `kind` nao for `channel_id`.
+ */
 export function createFakeChannelResolver(): ChannelResolver {
   return {
     resolveChannelId: (rawUrl) => {
-      if (rawUrl.trim() === '') {
-        return Promise.reject(new NotFoundError('URL vazia.', { rawUrl }));
+      try {
+        // Lanca InvalidChannelReferenceError quando a entrada nao e uma
+        // referencia de canal reconhecivel.
+        parseYouTubeChannelReference(rawUrl);
+      } catch (error) {
+        return Promise.reject(error instanceof Error ? error : new Error(String(error)));
       }
       return Promise.resolve(FIXTURE_CHANNEL_ID);
     },

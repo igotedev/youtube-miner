@@ -19,3 +19,9 @@ export {
   type CalculateAnalysisMetricsDependencies,
   type CalculateAnalysisMetricsInput,
 } from './application/use-cases/calculate-analysis-metrics';
+export {
+  GetAnalysisMetrics,
+  type AnalysisMetricsView,
+  type GetAnalysisMetricsDependencies,
+  type GetAnalysisMetricsInput,
+} from './application/queries/get-analysis-metrics';

@@ -19,11 +19,14 @@ Ambas rodam em `npm run verify`. **Mudou uma regra aqui, mude as duas.**
 | **R2** | `domain` e `application` não importam SDKs externos (Supabase, Anthropic, googleapis) |   ✅   |  ✅   |
 | **R3** | Camadas internas não importam `infrastructure`                                        |   ✅   |  ✅   |
 | **R4** | `domain` e `application` não importam `presentation`                                  |   ✅   |  ✅   |
-| **R5** | Módulos só se alcançam pelo barrel público `@/modules/<nome>`                         |   ✅   |  ✅   |
-| **R6** | `presentation` não importa `infrastructure`                                           |   ✅   |  ✅   |
+| **R5** | Módulos só se alcançam pelo barrel público `@/modules/<nome>` ¹                       |   ✅   |  ✅   |
+| **R6** | `presentation` não importa `infrastructure` ¹                                         |   ✅   |  ✅   |
 | **R7** | Um módulo não acessa tabelas de outro módulo                                          |   ❌   |  ❌   |
 | **R8** | Apenas `src/config/` e `shared/infrastructure/` leem `process.env`                    |   ❌   |  ✅   |
 | **R9** | `domain` e `application` não acessam relógio nem aleatoriedade                        |   ✅   |  ✅   |
+
+¹ Duas exceções documentadas, ambas raízes de composição: arquivos de teste e
+`src/config/composition/`. Ver as seções ao fim deste documento.
 
 R7 depende de SQL, que nenhuma das duas redes lê. Ela é garantida por revisão e
 pela consequência de R5: sem acesso ao repositório de outro módulo, não há como
@@ -175,6 +178,34 @@ React, leia `process.env` ou chame `new Date()` continua sendo violação.
 
 A exceção está codificada nos dois lugares — `TEST_FILES` no ESLint e `isTest`
 no teste de arquitetura.
+
+## Exceção: a raiz de composição
+
+`src/config/composition/` é a **outra** raiz de composição, e a única no código
+de produção. Monta os casos de uso com adaptadores concretos, e para isso precisa
+alcançar `infrastructure` — que os barrels não reexportam de propósito:
+adaptador não é contrato público de módulo.
+
+A exceção é **estreita**: libera apenas `infrastructure`. O `domain` e o
+`application` de outro módulo continuam vindo do barrel público.
+
+```ts
+// ✅ permitido apenas aqui
+import { InMemoryAnalysisRepository } from '@/modules/channel-analysis/infrastructure/memory/in-memory-analysis-repository';
+
+// ❌ continua proibido, mesmo na raiz de composição
+import { OUTLIER_THRESHOLDS } from '@/modules/video-analytics/domain/outlier';
+```
+
+Sem essa exceção, a alternativa seria reexportar adaptadores nos barrels — e aí
+qualquer arquivo do projeto poderia instanciar um cliente Supabase, que é
+exatamente o que R6 existe para impedir.
+
+Codificada no bloco `niche-miner/composition-root` do ESLint e em
+`isCompositionRoot` no teste de arquitetura. O teste ainda faz uma afirmação
+**positiva** complementar: nenhum arquivo de produção fora da raiz de composição
+importa `infrastructure`. R3 e R6 dizem quem não pode; essa diz quem pode, e a
+lista tem um item.
 
 ---
 
