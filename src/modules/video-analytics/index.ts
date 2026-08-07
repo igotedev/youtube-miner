@@ -23,6 +23,15 @@ export type { ChannelMetrics, FormatMetrics, VideoMetrics } from './domain/chann
 export { calculateAnalyzedPeriod } from './domain/publication-timing';
 export type { AnalyzedPeriod, PublicationFrequency } from './domain/publication-timing';
 
+// --- Periodo pedido (SPEC-003, secao 11-B) ---
+export {
+  createAnalysisPeriod,
+  filterByPeriod,
+  isWithinPeriod,
+  periodLengthInDays,
+  type AnalysisPeriod,
+} from './domain/analysis-period';
+
 // --- Resultado persistivel (SPEC-004) ---
 export {
   ANALYTICS_ALGORITHM_VERSION,

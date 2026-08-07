@@ -131,6 +131,53 @@ visualizações, e a tela não pode sugerir que teve.
 `0` legítimo — uma contagem de vídeos que é realmente zero — é exibido como `0`.
 Distinguir os dois casos é a função inteira do módulo.
 
+## 8-A. Filtro de período na tela
+
+Dois `<input type="date">` nativos e atalhos de 7, 30, 90 dias, 6 meses e 1 ano.
+**Nenhuma biblioteca de calendário foi adicionada** — a aplicação usa `<input>`
+nativo em todo lugar, e o tipo `date` é a escolha consistente.
+
+O filtro é **opcional**. Em branco, a análise cobre a coleta inteira — o
+comportamento anterior, preservado como padrão.
+
+### Os atalhos são calculados no navegador
+
+Eles apenas **preenchem os dois campos**; o servidor sempre recebe duas datas
+explícitas. Duas consequências: o caminho da análise no servidor não lê o
+relógio, e o usuário vê exatamente qual intervalo será enviado antes de
+confirmar.
+
+### `AAAA-MM-DD` vira instante em `period-input.ts`
+
+`<input type="date">` devolve um **dia de calendário**; o domínio compara
+instantes. A expansão acontece na apresentação, com teste:
+
+| Campo        | Vira                       |
+| ------------ | -------------------------- |
+| Data inicial | `AAAA-MM-DDT00:00:00.000Z` |
+| Data final   | `AAAA-MM-DDT23:59:59.999Z` |
+
+**UTC**, porque é o fuso que a tela já usa para exibir (`formatDate` e
+`formatTimestamp` fixam `timeZone: 'UTC'`). Expandir no fuso do navegador faria
+o mesmo intervalo selecionar conjuntos diferentes conforme quem olha, e a análise
+deixaria de ser reproduzível.
+
+Consequência assumida: as datas são interpretadas como dias UTC, e a tela diz
+isso. Para quem está em UTC-3, um vídeo publicado às 22h do dia 31 no horário
+local já é dia 1º em UTC e fica de fora — mas é o **mesmo critério** que a tela
+usa para exibir a data do vídeo, então os dois concordam.
+
+### O resumo diz três coisas diferentes
+
+Período **solicitado**, o que a coleta **alcança**, e quantos vídeos **sobraram**.
+Sem a segunda, um resultado vazio pareceria "o canal não publicou" quando a
+verdade costuma ser "a coleta não chega até lá" — e a tela avisa explicitamente
+quando o pedido cai fora da cobertura.
+
+Zero vídeos no período renderiza _"Não foram encontrados vídeos no período
+selecionado"_, e **não** os painéis zerados: zeros sugeririam um canal sem
+visualizações, que é outra afirmação (RN-08).
+
 ## 9. Testes
 
 **385 no total** (+38 nesta etapa), todos executados.

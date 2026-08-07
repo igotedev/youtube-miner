@@ -159,6 +159,9 @@ export function buildAnalysisPipeline(): AnalysisPipeline {
     getMetrics: new GetAnalysisMetrics({
       analyses: shared.analyses,
       analyticsResults,
+      // So e usado quando ha recorte por periodo: o filtro precisa dos videos do
+      // snapshot, que o resultado ja agregado nao carrega.
+      collectionRuns: shared.collectionRuns,
     }),
   };
 }

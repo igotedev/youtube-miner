@@ -22,6 +22,7 @@ export {
 export {
   GetAnalysisMetrics,
   type AnalysisMetricsView,
+  type CollectionCoverage,
   type GetAnalysisMetricsDependencies,
   type GetAnalysisMetricsInput,
 } from './application/queries/get-analysis-metrics';

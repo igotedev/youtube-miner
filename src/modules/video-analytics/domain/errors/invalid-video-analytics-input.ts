@@ -22,7 +22,9 @@ export type InvalidVideoAnalyticsInputReason =
   /** `format` fora de 'short' | 'long' | 'unknown'. */
   | 'unsupported_video_format'
   /** Valor nao finito ou negativo chegando a uma funcao estatistica. */
-  | 'invalid_numeric_value';
+  | 'invalid_numeric_value'
+  /** Periodo pedido com borda invalida ou com inicio depois do fim. */
+  | 'invalid_analysis_period';
 
 const MESSAGES: Readonly<Record<InvalidVideoAnalyticsInputReason, string>> = {
   invalid_collected_at: 'A data da coleta e invalida.',
@@ -32,6 +34,7 @@ const MESSAGES: Readonly<Record<InvalidVideoAnalyticsInputReason, string>> = {
   duplicate_video: 'O mesmo video aparece mais de uma vez na coleta.',
   unsupported_video_format: 'Um video tem formato desconhecido pelo motor de metricas.',
   invalid_numeric_value: 'Um valor numerico invalido chegou ao calculo.',
+  invalid_analysis_period: 'O periodo informado e invalido: a data inicial vem depois da final.',
 };
 
 /**

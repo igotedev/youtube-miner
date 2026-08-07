@@ -328,6 +328,49 @@ números interpretáveis.
 > abrange zero dias. Difere de `medianIntervalDays`, que é `null` com um vídeo
 > porque não existe intervalo algum para medir.
 
+## 11-B. Recorte por período pedido
+
+`AnalysisPeriod` é o intervalo que o **usuário escolheu**. Não confundir com
+`AnalyzedPeriod`, que é o intervalo **encontrado** — ver 11-A.
+
+```
+dentro = publishedAt >= period.start && publishedAt <= period.end
+```
+
+- **Fronteira inclusiva nos dois lados**, a mesma regra da janela de 30 dias. Um
+  vídeo publicado exatamente na data inicial ou na final **entra**.
+- O campo que decide é **`publishedAt`** — o único dado temporal por vídeo que a
+  coleta possui.
+- `start > end` é **recusado** (`invalid_analysis_period`). Devolver "nenhum
+  vídeo" esconderia um erro de digitação atrás de um resultado que parece
+  legítimo.
+- `start === end` é válido: um instante.
+- Nenhum vídeo no intervalo produz `ChannelMetrics` com contagens zeradas —
+  **resultado válido**, não erro.
+
+### O filtro NÃO acontece no motor
+
+`calculateChannelMetrics` permanece inalterado: recebe uma lista de vídeos e a
+agrega. Quem aplica o recorte é a consulta `GetAnalysisMetrics`, antes de chamar
+o motor.
+
+O motivo é um bug evitado. `video_analytics_results` é artefato **global**,
+reaproveitado entre usuários pela chave
+`(collection_run_id, algorithm_version)`. Se o resultado filtrado fosse
+persistido, quem pedisse "últimos 90 dias" receberia o que outra pessoa calculou
+para "últimos 7 dias" — números plausíveis, silenciosamente errados.
+
+Então o artefato persistido continua sendo o da **coleta inteira**, e o recorte é
+uma **visão derivada**, recalculada na leitura. Sem período, o caminho é
+exatamente o anterior: lê o resultado persistido.
+
+### O que o recorte não faz
+
+Não muda a seleção de vídeos da coleta. A coleta continua trazendo os
+`MAX_RECENT_VIDEOS` uploads mais recentes (SPEC-007), e o filtro seleciona
+**dentro** disso. Um período anterior à cobertura da coleta devolve vazio — e a
+tela precisa dizer por quê, senão o usuário conclui que o canal não publicou.
+
 ## 12. Classificação de outliers
 
 ```

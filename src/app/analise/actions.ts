@@ -3,10 +3,12 @@
 import { z } from 'zod';
 
 import { buildAnalysisPipeline, buildAuthGateway } from '@/config/composition';
+import { createAnalysisPeriod, type AnalysisPeriod } from '@/modules/video-analytics';
 import { AppError } from '@/shared/errors';
 import type { ErrorCode } from '@/shared/errors';
 
 import type { AnalysisFormState } from './analysis-state';
+import { parseDayEnd, parseDayStart } from './period-input';
 
 /**
  * Server Action da tela de analise.
@@ -35,7 +37,51 @@ const formSchema = z.object({
     .trim()
     .min(1, 'Informe a URL de um canal do YouTube.')
     .max(MAX_URL_LENGTH, 'A URL informada e longa demais.'),
+  /**
+   * As duas datas sao OPCIONAIS e andam juntas.
+   *
+   * Vazias significam "a coleta inteira" — o comportamento que existia antes do
+   * filtro, preservado como padrao. Preencher so uma das duas e recusado: um
+   * intervalo pela metade nao e um intervalo, e adivinhar a outra ponta seria
+   * escolher pelo usuario.
+   */
+  periodStart: z.string().trim().optional(),
+  periodEnd: z.string().trim().optional(),
 });
+
+const INVALID_DAY = 'Informe as datas no formato AAAA-MM-DD.';
+const INCOMPLETE_PERIOD = 'Informe as duas datas do periodo, ou deixe as duas em branco.';
+const INVERTED_PERIOD = 'A data inicial e posterior a data final.';
+
+/**
+ * Constroi o periodo a partir do formulario.
+ *
+ * Devolve `undefined` quando nao ha recorte, ou uma mensagem quando a entrada
+ * esta errada. A validacao do intervalo em si — inicio depois do fim — e do
+ * dominio (`createAnalysisPeriod`); aqui so traduzimos o erro para texto.
+ */
+function readPeriod(
+  rawStart: string | undefined,
+  rawEnd: string | undefined,
+): { period?: AnalysisPeriod } | { message: string } {
+  const start = rawStart ?? '';
+  const end = rawEnd ?? '';
+
+  if (start === '' && end === '') return {};
+  if (start === '' || end === '') return { message: INCOMPLETE_PERIOD };
+
+  const startInstant = parseDayStart(start);
+  const endInstant = parseDayEnd(end);
+  if (startInstant === null || endInstant === null) return { message: INVALID_DAY };
+
+  try {
+    return { period: createAnalysisPeriod(startInstant, endInstant) };
+  } catch {
+    // O unico motivo possivel neste ponto: inicio depois do fim. As duas datas
+    // ja foram validadas acima.
+    return { message: INVERTED_PERIOD };
+  }
+}
 
 /**
  * Mensagem exibivel para cada codigo de erro.
@@ -73,14 +119,25 @@ export async function analyzeChannel(
     return { status: 'error', message: MESSAGE_BY_CODE.UNAUTHORIZED };
   }
 
-  const parsed = formSchema.safeParse({ channelUrl: formData.get('channelUrl') });
+  const parsed = formSchema.safeParse({
+    channelUrl: formData.get('channelUrl'),
+    periodStart: formData.get('periodStart') ?? undefined,
+    periodEnd: formData.get('periodEnd') ?? undefined,
+  });
 
   if (!parsed.success) {
     const first = parsed.error.issues[0];
     return { status: 'invalid', message: first?.message ?? 'Entrada invalida.' };
   }
 
-  const { channelUrl } = parsed.data;
+  const { channelUrl, periodStart, periodEnd } = parsed.data;
+
+  const periodResult = readPeriod(periodStart, periodEnd);
+  if ('message' in periodResult) {
+    // Intervalo invertido ou incompleto BARRA a analise, antes de gastar quota.
+    return { status: 'invalid', message: periodResult.message };
+  }
+
   const pipeline = buildAnalysisPipeline();
 
   try {
@@ -99,11 +156,16 @@ export async function analyzeChannel(
     const view = await pipeline.getMetrics.execute({
       analysisId: finished.id,
       requestedBy: user.id,
+      ...(periodResult.period === undefined ? {} : { period: periodResult.period }),
     });
 
     if (view.metrics === null) {
       // A analise terminou sem metricas. Nao ha o que exibir, e inventar zeros
       // seria pior que dizer que nao deu (RN-08).
+      //
+      // NOTA: "nenhum video no periodo" NAO cai aqui. Aquilo produz um
+      // `ChannelMetrics` valido com contagens zeradas, e a tela diz que o
+      // intervalo esta vazio — que e uma resposta, nao uma falha.
       return { status: 'error', message: GENERIC_FAILURE };
     }
 
@@ -113,6 +175,8 @@ export async function analyzeChannel(
       requestedUrl: channelUrl,
       analysisStatus: view.analysis.status,
       metrics: view.metrics,
+      requestedPeriod: view.requestedPeriod,
+      coverage: view.coverage,
     };
   } catch (error) {
     if (error instanceof AppError) {
