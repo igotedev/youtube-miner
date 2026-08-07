@@ -15,8 +15,18 @@ canal e dos seus vídeos recentes: média e mediana de visualizações, frequên
 de postagem, vídeos fora da curva, distribuição entre Shorts e longos, e um
 relatório textual gerado por IA.
 
-**Estado atual: fundação arquitetural.** Nenhuma funcionalidade do MVP está
-implementada, e nenhuma integração real existe.
+**Estado atual: pipeline completo com dados reais do YouTube.** A análise executa
+de ponta a ponta — URL → referência normalizada → coleta na YouTube Data API →
+métricas → estado terminal — e há uma tela em `/analise` que a dispara.
+
+O que ainda **não** existe: persistência ligada à aplicação (o esquema da
+SPEC-004 está validado — migração aplicada, 108 asserções pgTAP passando — mas a
+raiz de composição ainda monta repositórios em memória), autenticação, e
+relatório de IA. Sem `YOUTUBE_API_KEY` a aplicação sobe com o fixture e declara
+isso na tela.
+
+**Custo de quota é restrição de projeto** (SPEC-007): uma análise gasta 3
+unidades de 10.000 diárias. `search.list` custa 100 e não pode ser usada.
 
 ### Três regras de produto que não se negociam
 
@@ -98,7 +108,8 @@ Verificadas por duas redes independentes, ambas em `npm run verify`:
 
 **Nunca use `eslint-disable` para contornar uma delas.** Se a regra atrapalha um
 caso legítimo, ou o desenho está errado, ou a exceção precisa ser explícita e
-documentada — como a dos arquivos de teste.
+documentada — como as duas que existem: arquivos de teste e
+`src/config/composition/`, ambas raízes de composição.
 
 **Mudou uma regra? Mude nos três lugares:** o documento, o ESLint e o teste.
 
@@ -203,6 +214,8 @@ Regras:
 | `docs/specs/SPEC-003-video-analytics-engine.md`                 | motor de métricas: média, mediana, frequência, outliers             |
 | `docs/specs/SPEC-004-postgresql-persistence.md`                 | esquema, RLS, reuso de coletas, concorrência, idempotência          |
 | `docs/specs/SPEC-005-analysis-metrics-persistence.md`           | cálculo e persistência das métricas; reuso do cálculo               |
+| `docs/specs/SPEC-006-composition-and-analysis-surface.md`       | raiz de composição, Server Action e primeira tela do pipeline       |
+| `docs/specs/SPEC-007-youtube-data-api-adapter.md`               | integração real com a YouTube Data API; economia de quota           |
 | `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                 |
 | `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                    |
 | `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                            |

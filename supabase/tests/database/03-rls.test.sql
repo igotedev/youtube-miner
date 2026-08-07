@@ -10,7 +10,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(21);
+select plan(29);
 
 -- --- RLS ativada em todas as tabelas ----------------------------------------
 select ok(relrowsecurity, 'RLS ativa em ' || relname)

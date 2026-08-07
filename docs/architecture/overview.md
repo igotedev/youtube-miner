@@ -117,20 +117,32 @@ Três observações que valem mais que o diagrama:
 
 ### Estado atual do fluxo
 
-Dois casos de uso cobrem os passos 3 a 9:
+Os passos 1 a 9 executam. Os passos 1 e 2 chegaram na SPEC-006; os casos de uso
+cobrem 3 a 9:
 
 - **`StartChannelAnalysis`** — 3 → 7, parando em `collecting_videos`. Antes de
   coletar, consulta uma coleta recente do mesmo canal (RN-10) e a reaproveita.
 - **`CalculateAnalysisMetrics`** (SPEC-005) — 8 → 9, terminando em
   `partially_completed`. Reaproveita o cálculo se outra análise já rodou aquela
   coleta na mesma versão do algoritmo.
+- **`GetAnalysisMetrics`** (SPEC-006) — consulta, não comando. Lê a análise com
+  as métricas já calculadas, escopada pelo dono. Existe porque o caso de uso de
+  cálculo devolve a `Analysis`, que carrega só a **referência** ao resultado.
 
 O passo 10 não existe: sem adaptador Claude, `partially_completed` é o destino
 honesto — dados objetivos válidos, relatório ausente (RN-09). Marcar `completed`
 afirmaria que um relatório foi produzido.
 
-Os dois são chamados em sequência por quem os monta. Encadeá-los automaticamente
-é assunto da SPEC de filas.
+Os dois casos de uso são chamados em sequência pela Server Action de `/analise`.
+Encadeá-los automaticamente é assunto da SPEC de filas.
+
+**A coleta usa a YouTube Data API de verdade** (SPEC-007) quando há
+`YOUTUBE_API_KEY`; sem ela, cai no fixture e a tela declara isso pelo campo
+`mode`.
+
+**A persistência ainda é em memória.** Os adaptadores Supabase existem desde a
+SPEC-004 e o esquema já está validado — migração aplicada em banco limpo, 108
+asserções pgTAP passando. Ligá-los na raiz de composição é a próxima etapa.
 
 ## 5. Limites entre módulos
 
@@ -186,9 +198,14 @@ Duas redes porque cada uma cobre a falha da outra: o ESLint é cego para
 `../../infrastructure/x` disfarçado e pode ser silenciado com `eslint-disable`;
 o teste não pode ser suprimido, mas não roda no editor enquanto você digita.
 
-**Exceção documentada:** arquivos `*.test.ts` são raízes de composição — montam
-casos de uso com adaptadores falsos, como `src/config/composition/` fará com os
-reais. Ficam livres de R3, R5 e R6, mas continuam sujeitos a R1, R2, R4 e R8.
+**Duas exceções documentadas**, ambas raízes de composição:
+
+- arquivos `*.test.ts`, que montam casos de uso com adaptadores falsos;
+- `src/config/composition/`, que os monta com os reais.
+
+As duas ficam livres de R3, R5 e R6 — a segunda de forma estreita, só para
+`infrastructure` — e continuam sujeitas a R1, R2, R4 e R8. Detalhe em
+`dependency-rules.md`.
 
 ## 7. Tipagem
 

@@ -442,21 +442,43 @@ Migração inicial: `20260806120000_initial_schema.sql`.
 | Serialização de métricas                  | Vitest                           | ✅ executado |
 | Arquitetura (R1–R9)                       | Vitest                           | ✅ executado |
 
-### O que **não** foi executado
+### Validação do SQL — executada em 2026-08-07
 
-> **O SQL desta SPEC nunca rodou.** O ambiente não tem Docker nem Supabase CLI.
-> A migração e os testes pgTAP estão escritos e revisados, mas **não
-> verificados em execução**. Nada nesta SPEC afirma que RLS, constraints ou
-> cascatas foram validados — apenas que foram especificados.
+> **A migração aplica em banco limpo e as 108 asserções pgTAP passam.**
 
-Testes pgTAP escritos, em `supabase/tests/database/`:
+Por meses esta seção dizia o contrário: o ambiente não tinha Docker funcional, e
+a SPEC registrava honestamente que o SQL estava _escrito e revisado, mas não
+verificado_. A execução finalmente aconteceu — e valeu a pena.
+
+Testes pgTAP em `supabase/tests/database/`:
 
 | Arquivo                   | Cobre                                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `01-schema.test.sql`      | 46 asserções: tabelas, PKs, tipos, FKs, unicidade, índices, funções                                     |
-| `02-constraints.test.sql` | 18 asserções: formato de ID, contagens negativas, formato de vídeo, duplicidade, concorrência, carimbos |
-| `03-rls.test.sql`         | 21 asserções: RLS ativa, grants, isolamento entre usuários, cliente não cria análise concluída          |
-| `04-cascades.test.sql`    | 11 asserções: trigger de perfil, cascatas, preservação de artefatos globais                             |
+| `01-schema.test.sql`      | 49 asserções: tabelas, PKs, tipos, FKs, unicidade, índices, funções                                     |
+| `02-constraints.test.sql` | 17 asserções: formato de ID, contagens negativas, formato de vídeo, duplicidade, concorrência, carimbos |
+| `03-rls.test.sql`         | 29 asserções: RLS ativa, grants, isolamento entre usuários, cliente não cria análise concluída          |
+| `04-cascades.test.sql`    | 13 asserções: trigger de perfil, cascatas, preservação de artefatos globais                             |
+
+#### O que a primeira execução encontrou
+
+**Nenhum defeito no esquema.** Migração, constraints, RLS e cascatas se
+comportaram como especificado. Os defeitos estavam nos **testes**:
+
+1. **Um dado de teste inválido chamado de válido.** `02-constraints` afirmava
+   que `UCzyxwvutsrqponmlkjihgf` era um ID oficial aceitável. São `UC` + 21
+   caracteres = 23; um ID tem 24. A constraint o recusou, corretamente, e o
+   teste registrou isso como falha do banco. **A asserção estava invertida:**
+   se o esquema estivesse errado — aceitando IDs de 23 caracteres — este teste
+   teria passado.
+
+2. **Quatro contagens de `plan()` erradas**, em todos os quatro arquivos. Eu
+   declarava 96 asserções no total; existem 108. O pgTAP acusa a divergência, e
+   é para isso que o plano explícito serve: sem ele, uma asserção que deixasse
+   de rodar passaria despercebida.
+
+A lição não é sobre SQL. É que **teste não executado não é teste** — é uma
+afirmação sobre teste. Estes quatro arquivos foram lidos e revisados várias
+vezes sem que nenhum dos dois problemas aparecesse.
 
 Para validar:
 

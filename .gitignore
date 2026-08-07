@@ -38,6 +38,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase — artefatos gerados pelo CLI ao subir a stack local.
+# `.temp/` contem, entre outras coisas, `start-secrets/` com credenciais do
+# ambiente local. Nada disso pertence ao repositorio.
+supabase/.temp/
+supabase/.branches/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

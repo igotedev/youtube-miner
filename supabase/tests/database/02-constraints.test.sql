@@ -10,7 +10,7 @@
 
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(18);
+select plan(17);
 
 -- Canal valido de apoio.
 insert into public.youtube_channels (id, youtube_channel_id, handle)
@@ -33,8 +33,11 @@ select throws_ok(
   $$insert into public.youtube_channels (youtube_channel_id) values ('UCabcdefghijklmnopqrst!v')$$,
   '23514', null, 'ID com caractere invalido e recusado');
 
+-- UC + 22 caracteres = 24 no total. A versao anterior deste teste usava 23 e
+-- portanto afirmava que um ID INVALIDO era valido; a constraint o recusou, como
+-- devia. Contar os caracteres importa aqui.
 select lives_ok(
-  $$insert into public.youtube_channels (youtube_channel_id) values ('UCzyxwvutsrqponmlkjihgf')$$,
+  $$insert into public.youtube_channels (youtube_channel_id) values ('UCzyxwvutsrqponmlkjihgfe')$$,
   'ID oficial valido e aceito');
 
 -- --- Contagens negativas -----------------------------------------------------

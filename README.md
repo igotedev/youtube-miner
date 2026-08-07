@@ -15,7 +15,15 @@ e **não exibe dado indisponível como zero**.
 
 ## Estado atual
 
-> **Etapa 1 de N — fundação arquitetural. Não é um produto funcional.**
+> **Analisa canais reais do YouTube. Ainda não persiste nada.**
+>
+> Informe a URL de um canal em `/analise` e o pipeline coleta os vídeos
+> recentes na YouTube Data API e calcula as métricas. O esquema do banco já
+> está validado, mas ainda não ligado à aplicação — os resultados vivem em
+> memória e somem ao reiniciar o servidor. Faltam também autenticação e
+> relatório de IA.
+>
+> Sem `YOUTUBE_API_KEY` a aplicação sobe com dados de exemplo e diz isso na tela.
 
 O que existe:
 
@@ -32,20 +40,28 @@ O que existe:
   com Shorts e vídeos longos rigorosamente separados
 - ✅ **Esquema PostgreSQL** (SPEC-004): 10 tabelas com RLS, separação entre dado
   global e do usuário, reuso de coletas (RN-10), proteção de concorrência e
-  idempotência — **migração escrita, ainda não executada** (exige Docker)
+  idempotência — **migração aplicada e 108 asserções pgTAP passando**
 - ✅ Mapeadores de persistência validados: `bigint`, datas, estados e JSON de
   métricas, com recusa de linha corrompida
 - ✅ **Pipeline de análise fechado** (SPEC-005): da URL até as métricas
   persistidas, com reuso de coleta e de cálculo entre usuários — verificado
   ponta a ponta com adaptadores em memória
-- ✅ SPEC-001 a SPEC-005, cinco ADRs e documentos de arquitetura
+- ✅ **Raiz de composição e tela `/analise`** (SPEC-006): Server Action que valida
+  a entrada com Zod, executa o pipeline e apresenta Shorts e vídeos longos
+  separados, com ausência exibida como "indisponível" e nunca como `0`
+- ✅ **Integração real com a YouTube Data API v3** (SPEC-007): resolve handle,
+  `/user/` e `/c/` para o ID oficial, coleta canal e vídeos recentes, e gasta
+  **3 unidades de quota por análise** — `search.list`, que custa 100, não é
+  usada em caminho algum
+- ✅ SPEC-001 a SPEC-007, cinco ADRs e documentos de arquitetura
 
 O que **não** existe:
 
-- ❌ Integração real com YouTube, Supabase ou Claude
-- ❌ Cadastro, login ou qualquer tela de análise
-- ❌ Resolução de handle ou `/c/` para o ID oficial (exige rede)
-- ❌ Banco local validado — a migração nunca rodou neste ambiente
+- ❌ Persistência **ligada na aplicação** — o esquema está validado, mas a raiz
+  de composição ainda monta repositórios em memória. Análises somem ao reiniciar
+- ❌ Cadastro ou login; o dono da análise é um identificador fixo de demonstração
+- ❌ Relatório de IA — por isso a análise termina em `partially_completed`
+- ❌ Mais de 50 vídeos por análise; dados privados do canal (exigiria OAuth)
 - ❌ Extensão Chrome, pagamentos, dashboard
 
 ## Stack
@@ -236,6 +252,8 @@ Detalhes e proibições em `CLAUDE.md`.
 | [SPEC-003](docs/specs/SPEC-003-video-analytics-engine.md)                | Motor de métricas de vídeos e canais                     |
 | [SPEC-004](docs/specs/SPEC-004-postgresql-persistence.md)                | Persistência, snapshots e reuso de análises              |
 | [SPEC-005](docs/specs/SPEC-005-analysis-metrics-persistence.md)          | Cálculo e persistência das métricas da análise           |
+| [SPEC-006](docs/specs/SPEC-006-composition-and-analysis-surface.md)      | Raiz de composição, Server Action e tela de análise      |
+| [SPEC-007](docs/specs/SPEC-007-youtube-data-api-adapter.md)              | Integração com a YouTube Data API e economia de quota    |
 | [Visão da arquitetura](docs/architecture/overview.md)                    | Camadas, fluxo da análise, limites, filas no futuro      |
 | [Regras de dependência](docs/architecture/dependency-rules.md)           | R1–R9 e como são verificadas                             |
 | [ADR-001](docs/adr/ADR-001-modular-monolith.md)                          | Monólito modular                                         |
