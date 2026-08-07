@@ -54,6 +54,30 @@ export function formatIntervalDays(value: number | null): string {
   return `${formatDecimal(value)} dias`;
 }
 
+/**
+ * Data sem hora, em UTC.
+ *
+ * Separada de `formatTimestamp` porque descreve outra coisa: um dia de
+ * publicacao, nao um instante de coleta. Exibir hora aqui sugeriria uma precisao
+ * que a leitura do periodo nao usa.
+ */
+export function formatDate(value: Date | null): string {
+  if (value === null) return UNAVAILABLE_LABEL;
+  return new Intl.DateTimeFormat(LOCALE, { dateStyle: 'short', timeZone: 'UTC' }).format(value);
+}
+
+/**
+ * Intervalo entre duas datas.
+ *
+ * Basta UMA das pontas faltar para o intervalo inteiro ser indisponivel: metade
+ * de um periodo nao e um periodo, e exibir so o inicio deixaria o leitor
+ * completar o resto sozinho.
+ */
+export function formatDateRange(start: Date | null, end: Date | null): string {
+  if (start === null || end === null) return UNAVAILABLE_LABEL;
+  return `${formatDate(start)} a ${formatDate(end)}`;
+}
+
 /** Instante absoluto, em UTC, para que a leitura nao dependa do fuso do leitor. */
 export function formatTimestamp(value: Date): string {
   return new Intl.DateTimeFormat(LOCALE, {

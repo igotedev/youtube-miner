@@ -9,6 +9,7 @@ import { InvalidVideoAnalyticsInputError } from './errors/invalid-video-analytic
 import { calculateOutlierScore, classifyOutlier, OUTLIER_THRESHOLDS } from './outlier';
 import {
   assertValidCollectedAt,
+  calculateAnalyzedPeriod,
   calculatePublicationFrequency,
   calculateVideoAgeInDays,
   calculateViewsPerDay,
@@ -156,10 +157,17 @@ function buildFormatMetrics(
 
   const scores = videoMetrics.map((metrics) => metrics.outlierScore);
 
+  // Sobre TODOS os videos do formato, inclusive os sem contagem: eles tem data
+  // de publicacao e fazem parte do conjunto analisado. A exclusao da RN-08 vale
+  // para os agregados de visualizacoes, nao para a extensao temporal.
+  const publishedDates = videos.map((video) => video.publishedAt);
+
   return {
     format,
     videoCount: videos.length,
     videosWithoutViewCount: videos.length - availableViews.length,
+
+    analyzedPeriod: calculateAnalyzedPeriod(publishedDates),
 
     viewCount: {
       total: calculateSum(availableViews),
@@ -174,10 +182,7 @@ function buildFormatMetrics(
       median: calculateMedian(availableViewsPerDay),
     },
 
-    publicationFrequency: calculatePublicationFrequency(
-      videos.map((video) => video.publishedAt),
-      collectedAt,
-    ),
+    publicationFrequency: calculatePublicationFrequency(publishedDates, collectedAt),
 
     outliers: {
       count: scores.filter((score) => score !== null && score >= OUTLIER_THRESHOLDS.outlier).length,

@@ -2,7 +2,7 @@ import type { YouTubeVideoId } from '@/modules/youtube-collection';
 
 import type { AnalyzableVideoFormat } from './analytics-video';
 import type { OutlierBand } from './outlier';
-import type { PublicationFrequency } from './publication-timing';
+import type { AnalyzedPeriod, PublicationFrequency } from './publication-timing';
 
 /**
  * Modelo de saida do motor de metricas.
@@ -38,6 +38,19 @@ export interface FormatMetrics {
   readonly videoCount: number;
   /** Videos excluidos dos agregados por nao terem contagem de visualizacoes. */
   readonly videosWithoutViewCount: number;
+
+  /**
+   * Periodo coberto pelos videos DESTE formato.
+   *
+   * Fica dentro do bloco de formato, e nao no nivel do canal, pela mesma RN-06
+   * que rege o resto: Shorts e videos longos costumam ter cadencias diferentes,
+   * e um periodo unico esconderia essa diferenca.
+   *
+   * Inclui os videos sem `viewCount` — eles tem data de publicacao, e portanto
+   * fazem parte do conjunto analisado mesmo ficando fora dos agregados de
+   * visualizacoes.
+   */
+  readonly analyzedPeriod: AnalyzedPeriod;
 
   readonly viewCount: {
     /** Soma das contagens disponiveis. */

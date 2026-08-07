@@ -88,6 +88,11 @@ interface FormatMetrics {
   format: 'short' | 'long';
   videoCount: number;
   videosWithoutViewCount: number;
+  analyzedPeriod: {
+    firstPublishedAt: Date | null;
+    lastPublishedAt: Date | null;
+    spanInDays: number | null;
+  };
   viewCount: { total; average; median; minimum; maximum }; // number | null
   viewsPerDay: { average; median }; // number | null
   publicationFrequency: {
@@ -147,15 +152,16 @@ totalVideoCount`. Há teste.
 
 ## 5. Definições matemáticas
 
-| Métrica                     | Fórmula                                           |
-| --------------------------- | ------------------------------------------------- |
-| Média                       | `Σ valores / quantidade`                          |
-| Mediana (ímpar)             | valor central da lista ordenada                   |
-| Mediana (par)               | `(central₁ + central₂) / 2`                       |
-| Idade em dias               | `(collectedAt − publishedAt) / 86.400.000`        |
-| Visualizações por dia       | `viewCount / max(ageInDays, 1)`                   |
-| Intervalo entre publicações | `(publicaçãoₙ − publicaçãoₙ₋₁) / 86.400.000`      |
-| Score de outlier            | `viewCount / mediana de visualizações do formato` |
+| Métrica                     | Fórmula                                              |
+| --------------------------- | ---------------------------------------------------- |
+| Média                       | `Σ valores / quantidade`                             |
+| Mediana (ímpar)             | valor central da lista ordenada                      |
+| Mediana (par)               | `(central₁ + central₂) / 2`                          |
+| Idade em dias               | `(collectedAt − publishedAt) / 86.400.000`           |
+| Visualizações por dia       | `viewCount / max(ageInDays, 1)`                      |
+| Intervalo entre publicações | `(publicaçãoₙ − publicaçãoₙ₋₁) / 86.400.000`         |
+| Período analisado           | `(max(publishedAt) − min(publishedAt)) / 86.400.000` |
+| Score de outlier            | `viewCount / mediana de visualizações do formato`    |
 
 Toda aritmética de tempo é feita em **milissegundos** e convertida para dias.
 Milissegundos são imunes a horário de verão e fuso — `getTime()` é um instante
@@ -278,6 +284,49 @@ cenário.
 - A referência é **sempre** `collectedAt`, nunca o relógio do sistema. Há teste
   provando que a mesma lista com outra data de coleta produz outra contagem.
 - É uma **contagem**: `0` é resultado legítimo, não ausência.
+
+## 11-A. Período efetivamente analisado
+
+```
+firstPublishedAt = min(publishedAt) dos vídeos DO FORMATO
+lastPublishedAt  = max(publishedAt) dos vídeos DO FORMATO
+spanInDays       = (lastPublishedAt − firstPublishedAt) / 86.400.000
+```
+
+### Por que este campo existe
+
+**A seleção de vídeos não tem filtro por data.** A coleta pega os
+`MAX_RECENT_VIDEOS` uploads mais recentes (SPEC-001, capacidade 5), e o período
+resultante é consequência da cadência do canal: 50 vídeos de um canal diário
+cobrem sete semanas; de um canal mensal, quatro anos.
+
+Sem este campo, os dois casos aparecem como "50 vídeos analisados" e parecem
+comparáveis. Não são — e a tela estaria omitindo a informação que torna os
+números interpretáveis.
+
+### Regras
+
+- **Por formato, nunca no nível do canal** (RN-06). Shorts e vídeos longos
+  costumam ter cadências diferentes, e um período único as esconderia.
+- **Inclui vídeos sem `viewCount`.** Eles têm data de publicação e fazem parte
+  do conjunto analisado; a exclusão da RN-08 vale para os agregados de
+  visualizações, não para a extensão temporal.
+- **Exclui vídeos `'unknown'`**, como todo o resto do bloco de formato.
+- **Não recebe `collectedAt`.** O período descreve o conjunto de vídeos, não a
+  distância até a coleta.
+- Não ordena nem modifica a entrada; um percurso acha os dois extremos. As datas
+  devolvidas são instâncias novas — `Date` é mutável.
+
+| Caso                  | Resultado                                    |
+| --------------------- | -------------------------------------------- |
+| Nenhum vídeo          | os três campos `null` — não `0` dias (RN-08) |
+| Um vídeo              | as duas pontas iguais, `spanInDays: 0`       |
+| Todas as datas iguais | as duas pontas iguais, `spanInDays: 0`       |
+| Fora de ordem         | mesmo resultado que ordenados                |
+
+> `spanInDays: 0` com um vídeo é **fato**, não ausência: um único ponto no tempo
+> abrange zero dias. Difere de `medianIntervalDays`, que é `null` com um vídeo
+> porque não existe intervalo algum para medir.
 
 ## 12. Classificação de outliers
 

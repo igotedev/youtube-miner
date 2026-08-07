@@ -20,7 +20,8 @@ export {
 
 // --- Saida ---
 export type { ChannelMetrics, FormatMetrics, VideoMetrics } from './domain/channel-metrics';
-export type { PublicationFrequency } from './domain/publication-timing';
+export { calculateAnalyzedPeriod } from './domain/publication-timing';
+export type { AnalyzedPeriod, PublicationFrequency } from './domain/publication-timing';
 
 // --- Resultado persistivel (SPEC-004) ---
 export {

@@ -23,6 +23,7 @@ const CALCULATED_AT = new Date('2026-07-30T18:30:00.000Z');
 const EMPTY_FORMAT = {
   videoCount: 0,
   videosWithoutViewCount: 0,
+  analyzedPeriod: { firstPublishedAt: null, lastPublishedAt: null, spanInDays: null },
   viewCount: { total: null, average: null, median: null, minimum: null, maximum: null },
   viewsPerDay: { average: null, median: null },
   publicationFrequency: {

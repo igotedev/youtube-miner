@@ -4,6 +4,8 @@ import {
   UNAVAILABLE_LABEL,
   formatAnalysisStatus,
   formatCount,
+  formatDate,
+  formatDateRange,
   formatDecimal,
   formatIntervalDays,
   formatOutlierBand,
@@ -66,6 +68,46 @@ describe('formatIntervalDays', () => {
 
   it('acompanha a unidade', () => {
     expect(formatIntervalDays(4)).toBe('4,0 dias');
+  });
+});
+
+describe('formatDate', () => {
+  it('exibe ausencia como rotulo', () => {
+    expect(formatDate(null)).toBe(UNAVAILABLE_LABEL);
+  });
+
+  it('formata em UTC, independente do fuso do leitor', () => {
+    expect(formatDate(new Date('2026-07-30T23:30:00.000Z'))).toBe('30/07/2026');
+  });
+
+  it('nao exibe hora — o periodo nao usa essa precisao', () => {
+    expect(formatDate(new Date('2026-07-30T12:00:00.000Z'))).not.toContain(':');
+  });
+});
+
+describe('formatDateRange', () => {
+  it('une as duas pontas', () => {
+    const range = formatDateRange(
+      new Date('2026-06-14T00:00:00.000Z'),
+      new Date('2026-08-05T00:00:00.000Z'),
+    );
+    expect(range).toBe('14/06/2026 a 05/08/2026');
+  });
+
+  it('uma unica data produz um intervalo de um ponto', () => {
+    // Um formato com um unico video. As duas pontas coincidem, e isso e um fato.
+    const dia = new Date('2026-07-01T00:00:00.000Z');
+    expect(formatDateRange(dia, dia)).toBe('01/07/2026 a 01/07/2026');
+  });
+
+  it.each([
+    ['as duas pontas ausentes', null, null],
+    ['so o inicio ausente', null, new Date('2026-08-05T00:00:00.000Z')],
+    ['so o fim ausente', new Date('2026-06-14T00:00:00.000Z'), null],
+  ])('exibe ausencia quando falta %s', (_caso, start, end) => {
+    // Metade de um periodo nao e um periodo. Exibir so uma ponta deixaria o
+    // leitor completar o resto sozinho.
+    expect(formatDateRange(start, end)).toBe(UNAVAILABLE_LABEL);
   });
 });
 

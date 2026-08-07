@@ -58,6 +58,13 @@ const formatMetricsSchema = z.object({
   format: z.enum(['short', 'long']),
   videoCount: z.number().int().nonnegative(),
   videosWithoutViewCount: z.number().int().nonnegative(),
+  // As duas datas voltam como `Date`, e nao como a string ISO que o `jsonb`
+  // guarda. Sem isto a tela receberia texto e a formatacao falharia longe daqui.
+  analyzedPeriod: z.object({
+    firstPublishedAt: dateSchema.nullable(),
+    lastPublishedAt: dateSchema.nullable(),
+    spanInDays: nullableNumber,
+  }),
   viewCount: z.object({
     total: nullableNumber,
     average: nullableNumber,

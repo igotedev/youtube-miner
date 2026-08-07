@@ -64,6 +64,30 @@ describe('percurso de ida e volta', () => {
 
     expect(deserializeChannelMetrics(throughWire)).toEqual(original);
   });
+
+  it('reconstroi as datas do periodo analisado como Date', () => {
+    // `JSON.stringify` transforma `Date` em string ISO e ela NAO volta sozinha.
+    // Sem o schema reconstruindo, a tela receberia texto e a formatacao falharia
+    // longe daqui, na apresentacao.
+    const original = richMetrics();
+
+    const restored = deserializeChannelMetrics(serializeChannelMetrics(original));
+
+    expect(restored.long.analyzedPeriod.firstPublishedAt).toBeInstanceOf(Date);
+    expect(restored.long.analyzedPeriod.lastPublishedAt).toBeInstanceOf(Date);
+    expect(restored.long.analyzedPeriod).toEqual(original.long.analyzedPeriod);
+  });
+
+  it('mantem o periodo indisponivel de um formato sem videos', () => {
+    // `shorts` nao tem nenhum video no fixture. As duas pontas precisam voltar
+    // `null`, e nao virar epoch — que e o que `new Date(null)` produziria.
+    const restored = deserializeChannelMetrics(serializeChannelMetrics(richMetrics()));
+
+    expect(restored.shorts.videoCount).toBe(0);
+    expect(restored.shorts.analyzedPeriod.firstPublishedAt).toBeNull();
+    expect(restored.shorts.analyzedPeriod.lastPublishedAt).toBeNull();
+    expect(restored.shorts.analyzedPeriod.spanInDays).toBeNull();
+  });
 });
 
 describe('preservacao dos quatro estados', () => {

@@ -99,6 +99,74 @@ export function calculateViewsPerDay(viewCount: number | null, ageInDays: number
   return viewCount / Math.max(ageInDays, MIN_EFFECTIVE_AGE_DAYS);
 }
 
+/**
+ * Extensao temporal do conjunto de videos efetivamente analisado.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE ISTO PRECISA SER EXIBIDO.
+ *
+ * A selecao de videos NAO tem filtro por data: a coleta pega os `MAX_RECENT_VIDEOS`
+ * uploads mais recentes, e o periodo resultante e consequencia de quanto o canal
+ * publica. Cinquenta videos de um canal diario cobrem sete semanas; de um canal
+ * mensal, quatro anos.
+ *
+ * Sem este campo, os dois casos aparecem na tela como "50 videos analisados" e
+ * parecem comparaveis. Nao sao.
+ * ---------------------------------------------------------------------------
+ */
+export interface AnalyzedPeriod {
+  /** Publicacao mais antiga do conjunto. `null` quando nao ha video. */
+  readonly firstPublishedAt: Date | null;
+  /** Publicacao mais recente do conjunto. `null` quando nao ha video. */
+  readonly lastPublishedAt: Date | null;
+  /**
+   * Dias fracionarios entre a primeira e a ultima publicacao.
+   *
+   * Com UM video o valor e `0`, e isso e um fato, nao uma ausencia: um unico
+   * ponto no tempo abrange zero dias. Diferente de `medianIntervalDays`, que e
+   * `null` com um video porque nao existe intervalo algum para medir.
+   */
+  readonly spanInDays: number | null;
+}
+
+/**
+ * Periodo coberto por um conjunto de publicacoes.
+ *
+ * Nao recebe `collectedAt`: o periodo descreve o CONJUNTO DE VIDEOS, e nao a
+ * distancia ate a coleta. Um video antigo continua no conjunto independentemente
+ * de quando alguem resolveu analisar o canal.
+ *
+ * O array recebido nao e modificado e nao ha ordenacao — um unico percurso basta
+ * para achar os extremos. As datas devolvidas sao INSTANCIAS NOVAS: `Date` e
+ * mutavel, e devolver as do chamador deixaria a saida do motor alteravel por
+ * quem mexesse na entrada depois.
+ */
+export function calculateAnalyzedPeriod(publishedDates: readonly Date[]): AnalyzedPeriod {
+  for (const date of publishedDates) {
+    assertValidDate(date, 'invalid_published_at');
+  }
+
+  if (publishedDates.length === 0) {
+    // Conjunto vazio devolve `null`, nunca datas inventadas nem `0` dias (RN-08).
+    return { firstPublishedAt: null, lastPublishedAt: null, spanInDays: null };
+  }
+
+  let firstMs = Number.POSITIVE_INFINITY;
+  let lastMs = Number.NEGATIVE_INFINITY;
+
+  for (const date of publishedDates) {
+    const time = date.getTime();
+    if (time < firstMs) firstMs = time;
+    if (time > lastMs) lastMs = time;
+  }
+
+  return {
+    firstPublishedAt: new Date(firstMs),
+    lastPublishedAt: new Date(lastMs),
+    spanInDays: (lastMs - firstMs) / MS_PER_DAY,
+  };
+}
+
 export interface PublicationFrequency {
   /**
    * Mediana dos intervalos, em dias. METRICA PRINCIPAL de frequencia: uma pausa

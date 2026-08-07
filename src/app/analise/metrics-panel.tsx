@@ -1,6 +1,12 @@
 import type { FormatMetrics } from '@/modules/video-analytics';
 
-import { formatCount, formatDecimal, formatIntervalDays, formatOutlierBand } from './format';
+import {
+  formatCount,
+  formatDateRange,
+  formatDecimal,
+  formatIntervalDays,
+  formatOutlierBand,
+} from './format';
 
 /**
  * Painel de UM formato. Recebe `FormatMetrics` e nada mais.
@@ -37,6 +43,24 @@ export function MetricsPanel({ title, caption, metrics }: MetricsPanelProps) {
         <Row label="Videos" value={formatCount(metrics.videoCount)} />
         <Row label="Sem contagem de views" value={formatCount(metrics.videosWithoutViewCount)} />
 
+        {/*
+          O periodo nao e configuravel: a coleta pega os videos mais recentes e a
+          janela e consequencia da cadencia do canal. Sem estas duas linhas, 50
+          videos de sete semanas e 50 videos de quatro anos aparecem iguais.
+        */}
+        <Row
+          label="Periodo analisado"
+          value={formatDateRange(
+            metrics.analyzedPeriod.firstPublishedAt,
+            metrics.analyzedPeriod.lastPublishedAt,
+          )}
+        />
+        <Row
+          label="Periodo — duracao"
+          value={formatIntervalDays(metrics.analyzedPeriod.spanInDays)}
+        />
+
+        <Row label="Views — total" value={formatCount(metrics.viewCount.total)} />
         <Row label="Views — mediana" value={formatCount(metrics.viewCount.median)} />
         <Row label="Views — media" value={formatCount(metrics.viewCount.average)} />
         <Row label="Views — minimo" value={formatCount(metrics.viewCount.minimum)} />

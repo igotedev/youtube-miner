@@ -14,8 +14,15 @@ export type AnalyticsResultId = Brand<string, 'AnalyticsResultId'>;
  * regra sem recoletar nada e sem gastar quota.
  *
  * Formato `MAJOR.MINOR.PATCH`, verificado pelo mapeador de persistencia.
+ *
+ * Historico:
+ *  - `1.0.0` — versao inicial (SPEC-003).
+ *  - `1.1.0` — `FormatMetrics.analyzedPeriod` acrescentado. MINOR porque nenhum
+ *    numero ja existente mudou de valor ou de significado: o campo e novo. Os
+ *    resultados em `1.0.0` continuam validos e guardados; simplesmente nao sao
+ *    reaproveitados por esta versao, que os recalcula na primeira analise.
  */
-export const ANALYTICS_ALGORITHM_VERSION = '1.0.0';
+export const ANALYTICS_ALGORITHM_VERSION = '1.1.0';
 
 /**
  * Resultado deterministico do motor da SPEC-003, ja persistivel.

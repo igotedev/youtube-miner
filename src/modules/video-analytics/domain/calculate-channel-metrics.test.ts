@@ -336,6 +336,102 @@ describe('metricas temporais', () => {
   });
 });
 
+describe('periodo efetivamente analisado', () => {
+  it('cobre da publicacao mais antiga a mais recente do formato', () => {
+    const metrics = calculateChannelMetrics({
+      videos: [
+        video({ format: 'long', publishedAt: daysBefore(50) }),
+        video({ format: 'long', publishedAt: daysBefore(30) }),
+        video({ format: 'long', publishedAt: daysBefore(5) }),
+      ],
+      collectedAt: COLLECTED_AT,
+    });
+
+    expect(metrics.long.analyzedPeriod.firstPublishedAt).toEqual(daysBefore(50));
+    expect(metrics.long.analyzedPeriod.lastPublishedAt).toEqual(daysBefore(5));
+    expect(metrics.long.analyzedPeriod.spanInDays).toBe(45);
+  });
+
+  it('cada formato tem o seu periodo, sem contaminar o outro (RN-06)', () => {
+    // O caso que motivou o campo: os mesmos "50 videos" podem cobrir sete
+    // semanas de Shorts e quatro anos de videos longos.
+    const metrics = calculateChannelMetrics({
+      videos: [
+        video({ format: 'short', publishedAt: daysBefore(9) }),
+        video({ format: 'short', publishedAt: daysBefore(2) }),
+        video({ format: 'long', publishedAt: daysBefore(400) }),
+        video({ format: 'long', publishedAt: daysBefore(100) }),
+      ],
+      collectedAt: COLLECTED_AT,
+    });
+
+    expect(metrics.shorts.analyzedPeriod.spanInDays).toBe(7);
+    expect(metrics.long.analyzedPeriod.spanInDays).toBe(300);
+    expect(metrics.shorts.analyzedPeriod.firstPublishedAt).toEqual(daysBefore(9));
+    expect(metrics.long.analyzedPeriod.firstPublishedAt).toEqual(daysBefore(400));
+  });
+
+  it('inclui videos sem contagem de views', () => {
+    // Eles ficam fora dos agregados de visualizacoes (RN-08), mas tem data de
+    // publicacao e fazem parte do conjunto analisado. Exclui-los encolheria o
+    // periodo e faria a tela descrever menos videos do que a analise usou.
+    const metrics = calculateChannelMetrics({
+      videos: [
+        video({ format: 'long', publishedAt: daysBefore(60), viewCount: null }),
+        video({ format: 'long', publishedAt: daysBefore(10), viewCount: 500 }),
+      ],
+      collectedAt: COLLECTED_AT,
+    });
+
+    expect(metrics.long.videosWithoutViewCount).toBe(1);
+    expect(metrics.long.analyzedPeriod.firstPublishedAt).toEqual(daysBefore(60));
+    expect(metrics.long.analyzedPeriod.spanInDays).toBe(50);
+  });
+
+  it('formato sem videos tem periodo indisponivel, nao zero dias', () => {
+    const metrics = calculateChannelMetrics({
+      videos: [video({ format: 'long', publishedAt: daysBefore(10) })],
+      collectedAt: COLLECTED_AT,
+    });
+
+    expect(metrics.shorts.videoCount).toBe(0);
+    expect(metrics.shorts.analyzedPeriod.firstPublishedAt).toBeNull();
+    expect(metrics.shorts.analyzedPeriod.spanInDays).toBeNull();
+  });
+
+  it('videos `unknown` ficam de fora do periodo dos dois formatos', () => {
+    const metrics = calculateChannelMetrics({
+      videos: [
+        video({ format: 'long', publishedAt: daysBefore(20) }),
+        video({ format: 'long', publishedAt: daysBefore(10) }),
+        video({ format: 'unknown', publishedAt: daysBefore(900) }),
+      ],
+      collectedAt: COLLECTED_AT,
+    });
+
+    // Sem isto, um video sem duracao conhecida esticaria o periodo de um formato
+    // ao qual ele nao pertence.
+    expect(metrics.long.analyzedPeriod.firstPublishedAt).toEqual(daysBefore(20));
+    expect(metrics.long.analyzedPeriod.spanInDays).toBe(10);
+    expect(metrics.shorts.analyzedPeriod.spanInDays).toBeNull();
+    expect(metrics.unclassifiedVideoCount).toBe(1);
+  });
+
+  it('nao depende de collectedAt', () => {
+    // O periodo descreve o conjunto de videos, nao a distancia ate a coleta.
+    const videos = [
+      video({ format: 'long', publishedAt: daysBefore(30) }),
+      video({ format: 'long', publishedAt: daysBefore(3) }),
+    ];
+    const depois = new Date(COLLECTED_AT.getTime() + 90 * MS_PER_DAY);
+
+    const a = calculateChannelMetrics({ videos, collectedAt: COLLECTED_AT });
+    const b = calculateChannelMetrics({ videos, collectedAt: depois });
+
+    expect(b.long.analyzedPeriod).toEqual(a.long.analyzedPeriod);
+  });
+});
+
 describe('validacao de entrada', () => {
   it('recusa IDs duplicados em vez de deduplicar em silencio', () => {
     const duplicated = video({ viewCount: 100 });
