@@ -10,6 +10,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      /**
+       * `server-only` e resolvido pelo bundler do Next, nao pelo Node. Sem este
+       * alias, qualquer teste que alcance a raiz de composicao falha com
+       * "Cannot find package".
+       *
+       * A barreira de build continua intacta: quem a aplica e o Next ao montar
+       * o bundle do cliente, e ele nao le esta configuracao. Ver o comentario no
+       * proprio stub.
+       */
+      'server-only': fileURLToPath(
+        new URL('./tests/integration/stubs/server-only.ts', import.meta.url),
+      ),
     },
   },
   test: {

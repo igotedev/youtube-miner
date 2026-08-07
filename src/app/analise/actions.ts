@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 
-import { DEMONSTRATION_USER_ID, buildAnalysisPipeline } from '@/config/composition';
+import { buildAnalysisPipeline, buildAuthGateway } from '@/config/composition';
 import { AppError } from '@/shared/errors';
 import type { ErrorCode } from '@/shared/errors';
 
@@ -20,11 +20,10 @@ import type { AnalysisFormState } from './analysis-state';
  * exportar funcoes assincronas — cada export vira um endpoint invocavel pelo
  * navegador. Tipos e constantes de estado ficam em `analysis-state.ts`.
  *
- * LACUNA CONHECIDA — autenticacao.
- * A documentacao do Next recomenda verificar autenticacao e autorizacao dentro
- * de cada Server Action. Aqui nao ha o que verificar: a SPEC de identidade nao
- * existe e o dono e um identificador fixo de demonstracao. Quando a autenticacao
- * entrar, a verificacao vem para o topo desta funcao, antes da validacao.
+ * A VERIFICACAO DE SESSAO E A PRIMEIRA COISA QUE ACONTECE — antes da validacao
+ * da entrada, antes de montar o pipeline. Uma Server Action e um endpoint HTTP
+ * publico: o formulario na tela e uma das formas de chama-la, nao a unica, e o
+ * middleware nao protege o que nao passa por ele. Ver ADR-006, item 4.
  */
 
 /** Teto de tamanho da entrada. Barra corpo absurdo antes de qualquer trabalho. */
@@ -49,7 +48,7 @@ const formSchema = z.object({
 const MESSAGE_BY_CODE: Readonly<Record<ErrorCode, string>> = {
   VALIDATION_ERROR: 'A URL informada nao e de um canal do YouTube.',
   NOT_FOUND: 'Nenhum canal foi encontrado para essa URL.',
-  UNAUTHORIZED: 'Sessao invalida.',
+  UNAUTHORIZED: 'Sua sessao expirou. Entre de novo para analisar um canal.',
   FORBIDDEN: 'Sem permissao para esta analise.',
   CONFLICT: 'Ja existe uma analise em andamento para este canal. Tente de novo em instantes.',
   EXTERNAL_SERVICE_ERROR: 'O YouTube nao respondeu. Tente de novo em instantes.',
@@ -63,6 +62,17 @@ export async function analyzeChannel(
   _previous: AnalysisFormState,
   formData: FormData,
 ): Promise<AnalysisFormState> {
+  /**
+   * Sessao primeiro. Sem ela nao ha dono para a analise, e uma analise sem dono
+   * nao existe — `channel_analyses.user_id` e `not null`.
+   */
+  const auth = await buildAuthGateway();
+  const user = await auth.getCurrentUser();
+
+  if (user === null) {
+    return { status: 'error', message: MESSAGE_BY_CODE.UNAUTHORIZED };
+  }
+
   const parsed = formSchema.safeParse({ channelUrl: formData.get('channelUrl') });
 
   if (!parsed.success) {
@@ -77,18 +87,18 @@ export async function analyzeChannel(
     // Dois casos de uso em sequencia, como o overview.md descreve. Encadea-los
     // automaticamente e assunto da SPEC de filas.
     const started = await pipeline.start.execute({
-      requestedBy: DEMONSTRATION_USER_ID,
+      requestedBy: user.id,
       channelUrl,
     });
 
     const finished = await pipeline.calculateMetrics.execute({
       analysisId: started.id,
-      requestedBy: DEMONSTRATION_USER_ID,
+      requestedBy: user.id,
     });
 
     const view = await pipeline.getMetrics.execute({
       analysisId: finished.id,
-      requestedBy: DEMONSTRATION_USER_ID,
+      requestedBy: user.id,
     });
 
     if (view.metrics === null) {

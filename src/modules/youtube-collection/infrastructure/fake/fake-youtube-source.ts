@@ -21,7 +21,18 @@ import type { YouTubeVideo, YouTubeVideoId } from '../../domain/youtube-video';
  *  - um video com visualizacoes muito acima dos demais (caso de outlier).
  */
 
-const FIXTURE_CHANNEL_ID = 'UC_fixture_channel_0000' as YouTubeChannelId;
+/**
+ * `UC` + 22 caracteres, como a RN-01 exige e como o banco verifica.
+ *
+ * Ate a SPEC-009 este literal tinha 23 caracteres no total, e nao 24 — nao era
+ * um ID de canal valido segundo a regra do proprio projeto. Nada pegava: o fake
+ * devolve o valor pronto, sem passar pela validacao de formato, e o repositorio
+ * em memoria aceita qualquer string. Apareceu no primeiro `insert` real, contra
+ * a constraint `youtube_channels_id_format`.
+ *
+ * Se este valor mudar, ele tem de continuar casando com `^UC[A-Za-z0-9_-]{22}$`.
+ */
+const FIXTURE_CHANNEL_ID = 'UC_fixture_channel_00000' as YouTubeChannelId;
 
 const FIXTURE_CHANNEL: YouTubeChannel = {
   id: FIXTURE_CHANNEL_ID,

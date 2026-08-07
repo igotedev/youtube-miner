@@ -1,5 +1,6 @@
 import type { UserId } from '@/modules/identity';
 import type {
+  ChannelDirectory,
   ChannelResolver,
   CollectionRun,
   CollectionRunId,
@@ -46,6 +47,13 @@ export interface StartChannelAnalysisDependencies {
   readonly analyses: AnalysisRepository;
   readonly collectionRuns: CollectionRunRepository;
   /**
+   * Garante que o canal existe antes de a analise apontar para ele.
+   *
+   * Ver a chamada em `execute` para o motivo — que e uma chave estrangeira
+   * real, e nao simetria de desenho.
+   */
+  readonly channelDirectory: ChannelDirectory;
+  /**
    * Por quantas horas uma coleta concluida serve de cache (RN-10).
    *
    * Chega como numero puro, vindo de `ANALYSIS_FRESHNESS_HOURS`. O dominio nao
@@ -60,7 +68,8 @@ export class StartChannelAnalysis {
   constructor(private readonly deps: StartChannelAnalysisDependencies) {}
 
   async execute(input: StartChannelAnalysisInput): Promise<Analysis> {
-    const { clock, logger, ids, channelResolver, analyses, collectionRuns } = this.deps;
+    const { clock, logger, ids, channelResolver, analyses, collectionRuns, channelDirectory } =
+      this.deps;
 
     // Idempotencia antes de qualquer trabalho: um retry de rede nao pode virar
     // uma segunda analise nem uma segunda coleta.
@@ -76,6 +85,20 @@ export class StartChannelAnalysis {
 
     const channelId = await channelResolver.resolveChannelId(input.channelUrl);
     const startedAt = clock.now();
+
+    /**
+     * O canal precisa existir ANTES de a analise apontar para ele.
+     *
+     * Nao e simetria de desenho: `channel_analyses.channel_id` referencia
+     * `youtube_channels`, e sem esta linha a primeira analise de um canal novo
+     * falha com violacao de chave estrangeira. Quem registrava o canal era a
+     * coleta, la embaixo em `collect()` — depois de `analyses.create`.
+     *
+     * O defeito ficou invisivel enquanto a persistencia era em memoria: o
+     * repositorio falso aceita qualquer identificador de canal. Apareceu na
+     * primeira execucao contra o PostgreSQL.
+     */
+    await channelDirectory.ensureRegistered(channelId);
 
     let analysis: Analysis = {
       id: ids.next() as AnalysisId,

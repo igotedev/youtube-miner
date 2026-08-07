@@ -5,6 +5,7 @@ import type { CollectionRun, CollectionRunId } from '@/modules/youtube-collectio
 import { ConcurrentCollectionRunError, MAX_RECENT_VIDEOS } from '@/modules/youtube-collection';
 // Imports internos deliberados: adaptadores nao fazem parte da superficie
 // publica e so podem ser usados em teste ou na raiz de composicao.
+import { InMemoryChannelDirectory } from '@/modules/youtube-collection/infrastructure/memory/in-memory-channel-directory';
 import { InMemoryCollectionRunRepository } from '@/modules/youtube-collection/infrastructure/memory/in-memory-collection-run-repository';
 import {
   createFakeChannelResolver,
@@ -40,6 +41,7 @@ function sequentialIds(): UuidGenerator {
 function buildUseCase() {
   const analyses = new InMemoryAnalysisRepository();
   const collectionRuns = new InMemoryCollectionRunRepository();
+  const channelDirectory = new InMemoryChannelDirectory();
   const { clock, advanceHours } = mutableClock();
   const channelSource = createFakeYouTubeChannelSource();
 
@@ -60,6 +62,7 @@ function buildUseCase() {
     channelSource: countingSource,
     analyses,
     collectionRuns,
+    channelDirectory,
     analysisFreshnessHours: FRESHNESS_HOURS,
   });
 
@@ -67,6 +70,7 @@ function buildUseCase() {
     useCase,
     analyses,
     collectionRuns,
+    channelDirectory,
     advanceHours,
     quotaSpent: () => fetchedChannels,
   };
@@ -76,6 +80,52 @@ const INPUT = {
   requestedBy: 'user_1' as UserId,
   channelUrl: 'https://www.youtube.com/@canal-de-exemplo',
 };
+
+describe('registro do canal', () => {
+  /**
+   * Estes dois casos existem por causa de um defeito real.
+   *
+   * A analise referencia o canal por chave estrangeira, e o canal era registrado
+   * pela COLETA — que so comeca depois de `analyses.create`. Contra o
+   * PostgreSQL, a primeira analise de qualquer canal novo falhava.
+   *
+   * O repositorio em memoria aceita qualquer identificador de canal, entao
+   * nenhum teste daqui pegava. Estes pegam: eles afirmam a ORDEM, que e o que a
+   * chave estrangeira exige.
+   */
+  it('registra o canal antes de criar a analise', async () => {
+    const { useCase, channelDirectory } = buildUseCase();
+
+    const analysis = await useCase.execute(INPUT);
+
+    expect(channelDirectory.has(analysis.channelId)).toBe(true);
+  });
+
+  it('nao cria a analise se o registro do canal falhar', async () => {
+    // A ordem so esta garantida se a falha do registro IMPEDIR a criacao. Sem
+    // este caso, mover `ensureRegistered` para depois de `analyses.create`
+    // manteria o teste acima passando.
+    const { analyses } = buildUseCase();
+    const falha = new Error('registro indisponivel');
+
+    const useCase = new StartChannelAnalysis({
+      clock: { now: () => FIXED_NOW },
+      logger: noopLogger,
+      ids: sequentialIds(),
+      channelResolver: createFakeChannelResolver(),
+      channelSource: createFakeYouTubeChannelSource(),
+      analyses,
+      collectionRuns: new InMemoryCollectionRunRepository(),
+      channelDirectory: {
+        ensureRegistered: () => Promise.reject(falha),
+      },
+      analysisFreshnessHours: FRESHNESS_HOURS,
+    });
+
+    await expect(useCase.execute(INPUT)).rejects.toThrow(falha);
+    expect(analyses.size).toBe(0);
+  });
+});
 
 describe('StartChannelAnalysis — coleta nova', () => {
   it('percorre os estados de coleta e para em collecting_videos', async () => {

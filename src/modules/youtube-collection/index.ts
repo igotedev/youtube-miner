@@ -42,6 +42,7 @@ export { ConcurrentCollectionRunError } from './domain/errors/concurrent-collect
 
 // --- Portas ---
 export type { ChannelResolver } from './application/ports/channel-resolver';
+export type { ChannelDirectory } from './application/ports/channel-directory';
 export {
   MAX_RECENT_VIDEOS,
   type YouTubeChannelSource,

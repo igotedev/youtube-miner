@@ -15,6 +15,16 @@ import type { Analysis, AnalysisId } from '../../domain/analysis';
 export class InMemoryAnalysisRepository implements AnalysisRepository {
   private readonly analyses = new Map<AnalysisId, Analysis>();
 
+  /**
+   * Quantas analises existem, sem dono.
+   *
+   * Fora do contrato da porta de proposito: serve para um teste afirmar que NADA
+   * foi gravado. A porta nao tem — e nao deve ter — uma leitura sem usuario.
+   */
+  get size(): number {
+    return this.analyses.size;
+  }
+
   findById(id: AnalysisId, ownerId: UserId): Promise<Analysis | null> {
     const found = this.analyses.get(id);
     // Espelha o RLS: analise de outro usuario simplesmente nao existe para quem

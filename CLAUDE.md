@@ -15,21 +15,24 @@ canal e dos seus vídeos recentes: média e mediana de visualizações, frequên
 de postagem, vídeos fora da curva, distribuição entre Shorts e longos, e um
 relatório textual gerado por IA.
 
-**Estado atual: pipeline completo com dados reais do YouTube.** A análise executa
-de ponta a ponta — URL → referência normalizada → coleta na YouTube Data API →
-métricas → estado terminal — e há uma tela em `/analise` que a dispara.
+**Estado atual: produto funcional de ponta a ponta, com conta e dados reais.** O
+usuário entra por link de e-mail, informa a URL de um canal, e a análise executa
+— URL → referência normalizada → coleta na YouTube Data API → métricas → estado
+terminal — **gravando tudo no PostgreSQL**. As análises sobrevivem ao reinício do
+servidor.
 
-O que ainda **não** existe: persistência ligada à aplicação, autenticação, e
-relatório de IA. Sem `YOUTUBE_API_KEY` a aplicação sobe com o fixture e declara
-isso na tela.
+O que ainda **não** existe: relatório de IA (por isso a análise termina em
+`partially_completed`) e tela de histórico — a análise é persistida, mas
+`/analise` só mostra o resultado da execução recém-disparada.
 
-**Sobre a persistência.** O esquema está validado (108 asserções pgTAP) e o
-adaptador Supabase das coletas existe e passa 21 testes de integração contra o
-Postgres real (SPEC-008). Mesmo assim a raiz de composição continua montando
-repositórios em memória, e isso é intencional: `channel_analyses.user_id`
-referencia `auth.users`, e o usuário de demonstração é um UUID inventado. Trocar
-o adaptador antes da autenticação produziria violação de chave estrangeira na
-primeira análise. **Autenticação primeiro, persistência depois.**
+**Duas exigências de configuração, com naturezas diferentes:**
+
+- **Supabase é obrigatório.** Sem ele a aplicação **falha**, nomeando a variável
+  que falta. Não há modo em memória nem sessão de demonstração: uma sessão falsa
+  escolhida por engano faria de todos os visitantes o mesmo usuário, e nada na
+  tela denunciaria (SPEC-009, seção 6).
+- **`YOUTUBE_API_KEY` é opcional.** Sem ela a coleta usa o fixture e a tela
+  declara isso. Um fixture visível não engana ninguém.
 
 **Custo de quota é restrição de projeto** (SPEC-007): uma análise gasta 3
 unidades de 10.000 diárias. `search.list` custa 100 e não pode ser usada.
@@ -190,6 +193,20 @@ Regras:
   do servidor.
 - Não registre em log corpo bruto de resposta de terceiro, token ou credencial.
 
+### Identidade (ADR-006)
+
+- **`getUser()`, nunca `getSession()`.** `getSession()` devolve o conteúdo do
+  cookie sem verificar assinatura, e cookie é dado enviado pelo cliente — um
+  `user.id` forjado passaria. `getUser()` valida contra o servidor Auth. A regra
+  vale para todo caminho que decide identidade.
+- **Quem é o usuário vem da porta `AuthGateway`.** Nenhuma camada acima de
+  `infrastructure` lê cookie.
+- **`src/proxy.ts` não é fronteira de autorização.** Ele redireciona por
+  conveniência de navegação. A verificação que vale acontece dentro de cada
+  Server Action e de cada rota, junto do dado.
+- **Não existe sessão de demonstração.** Sem Supabase configurado, a composição
+  falha. Ver SPEC-009, seção 6.
+
 ## 9. Proibições
 
 - **Não implemente o que não está em uma SPEC.** Fora do escopo do MVP:
@@ -224,6 +241,7 @@ Regras:
 | `docs/specs/SPEC-006-composition-and-analysis-surface.md`       | raiz de composição, Server Action e primeira tela do pipeline       |
 | `docs/specs/SPEC-007-youtube-data-api-adapter.md`               | integração real com a YouTube Data API; economia de quota           |
 | `docs/specs/SPEC-008-collection-run-persistence.md`             | adaptador Supabase das coletas; conclusão transacional; permissões  |
+| `docs/specs/SPEC-009-authentication-and-live-persistence.md`    | acesso por link de e-mail; persistência ligada na composição        |
 | `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                 |
 | `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                    |
 | `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                            |
@@ -231,6 +249,7 @@ Regras:
 | `docs/adr/ADR-003-postgresql-supabase.md`                       | por que PostgreSQL via Supabase                                     |
 | `docs/adr/ADR-004-external-integrations.md`                     | por que integrações atrás de contratos                              |
 | `docs/adr/ADR-005-persistence-boundaries-and-analysis-reuse.md` | dado global × dado do usuário; service role                         |
+| `docs/adr/ADR-006-cookie-session-with-supabase-auth.md`         | magic link; sessão em cookie; `getUser()`; onde a autorização mora  |
 
 **Consulte a SPEC antes de implementar. Registre um ADR antes de mudar
 arquitetura.** Documento desatualizado é pior que documento ausente — se o

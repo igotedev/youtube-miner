@@ -56,7 +56,8 @@ export function AnalysisForm() {
               <strong>Dados de demonstracao.</strong> Nenhuma consulta foi feita ao YouTube. Os
               numeros abaixo vem de um conjunto fixo de exemplo e{' '}
               <strong>nao descrevem o canal informado</strong> — qualquer URL valida produz este
-              mesmo resultado. O adaptador da YouTube Data API ainda nao existe.
+              mesmo resultado. A integracao real existe; falta a variavel{' '}
+              <code className="font-mono">YOUTUBE_API_KEY</code> no ambiente.
             </p>
           )}
 

@@ -1,5 +1,9 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 
+import { SIGN_IN_PATH, buildAuthGateway } from '@/config/composition';
+
+import { SignOutButton } from '../auth/sign-out-button';
 import { AnalysisForm } from './analysis-form';
 
 export const metadata: Metadata = {
@@ -9,15 +13,37 @@ export const metadata: Metadata = {
 };
 
 /**
- * Tela de analise de canal (SPEC-006).
+ * Tela de analise de canal (SPEC-006, com sessao desde a SPEC-009).
  *
- * Componente de servidor, sem estado. Toda a interacao vive em `AnalysisForm`, e
- * a execucao vive na Server Action — que pede os casos de uso prontos a raiz de
- * composicao. Nenhum adaptador e instanciado nesta camada (R6).
+ * Componente de servidor. Toda a interacao vive em `AnalysisForm`, e a execucao
+ * vive na Server Action — que pede os casos de uso prontos a raiz de composicao.
+ * Nenhum adaptador e instanciado nesta camada (R6).
  */
-export default function AnalysisPage() {
+export default async function AnalysisPage() {
+  /**
+   * O middleware ja teria redirecionado quem nao tem sessao. Esta verificacao
+   * nao e redundante: ela e a que vale.
+   *
+   * Se um dia esta rota sair do `matcher` do middleware — por um ajuste de
+   * padrao que ninguem relacionou com autenticacao —, a pagina continua
+   * protegida. A autorizacao mora junto do recurso (ADR-006, item 4).
+   */
+  const auth = await buildAuthGateway();
+  const user = await auth.getCurrentUser();
+
+  if (user === null) {
+    redirect(`${SIGN_IN_PATH}?next=%2Fanalise`);
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-16">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
+        <p className="text-sm text-muted">
+          Conectado como <span className="font-mono">{user.email}</span>
+        </p>
+        <SignOutButton />
+      </div>
+
       <header className="flex flex-col gap-3">
         <p className="font-mono text-xs tracking-widest text-muted uppercase">
           SPEC-006 — primeira superficie do pipeline

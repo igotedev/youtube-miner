@@ -46,7 +46,7 @@ function buildAnalysis(patch: Partial<Analysis> = {}): Analysis {
   return {
     id: ANALYSIS_ID,
     requestedBy: OWNER,
-    channelId: 'UC_fixture_channel_0000' as Analysis['channelId'],
+    channelId: 'UC_fixture_channel_00000' as Analysis['channelId'],
     requestedUrl: 'https://www.youtube.com/@canal-de-exemplo',
     status: 'partially_completed',
     collectionRunId: RUN_ID,

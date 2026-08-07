@@ -9,6 +9,7 @@ import {
   createFakeYouTubeChannelSource,
   fakeFixture,
 } from '@/modules/youtube-collection/infrastructure/fake/fake-youtube-source';
+import { InMemoryChannelDirectory } from '@/modules/youtube-collection/infrastructure/memory/in-memory-channel-directory';
 import { InMemoryCollectionRunRepository } from '@/modules/youtube-collection/infrastructure/memory/in-memory-collection-run-repository';
 import type { Clock, UuidGenerator } from '@/shared/domain';
 import { DomainError, NotFoundError } from '@/shared/errors';
@@ -45,6 +46,7 @@ function buildPipeline() {
     channelSource: createFakeYouTubeChannelSource(),
     analyses,
     collectionRuns,
+    channelDirectory: new InMemoryChannelDirectory(),
     analysisFreshnessHours: 24,
   });
 

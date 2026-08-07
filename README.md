@@ -15,15 +15,24 @@ e **não exibe dado indisponível como zero**.
 
 ## Estado atual
 
-> **Analisa canais reais do YouTube. Ainda não persiste nada.**
+> **Funciona de ponta a ponta: você entra, analisa um canal real e o resultado
+> fica guardado.**
 >
-> Informe a URL de um canal em `/analise` e o pipeline coleta os vídeos
-> recentes na YouTube Data API e calcula as métricas. O esquema do banco já
-> está validado, mas ainda não ligado à aplicação — os resultados vivem em
-> memória e somem ao reiniciar o servidor. Faltam também autenticação e
-> relatório de IA.
+> Entre em `/entrar` com o seu e-mail — chega um link de acesso, não há senha.
+> Informe a URL de um canal em `/analise` e o pipeline coleta os vídeos recentes
+> na YouTube Data API, calcula as métricas e **grava tudo no PostgreSQL**. As
+> análises sobrevivem ao reinício do servidor.
 >
-> Sem `YOUTUBE_API_KEY` a aplicação sobe com dados de exemplo e diz isso na tela.
+> Falta o relatório de IA — por isso a análise termina em
+> `partially_completed` — e a tela de histórico: a análise é persistida, mas
+> `/analise` só mostra o resultado da execução recém-disparada.
+>
+> **O Supabase é obrigatório.** Sem ele a aplicação falha, dizendo qual variável
+> falta. Não há modo em memória nem sessão de demonstração — ver a seção 6 da
+> SPEC-009.
+>
+> Já `YOUTUBE_API_KEY` é opcional: sem ela a coleta usa dados de exemplo e a tela
+> diz isso.
 
 O que existe:
 
@@ -56,51 +65,54 @@ O que existe:
 - ✅ **Adaptador Supabase das coletas** (SPEC-008): grava e lê execuções de
   coleta no Postgres real, conclui em **uma transação** e de forma idempotente —
   **21 testes de integração** contra o banco de verdade
-- ✅ SPEC-001 a SPEC-008, cinco ADRs e documentos de arquitetura
+- ✅ **Acesso por link de e-mail** (SPEC-009): sem senha em lugar nenhum, cadastro
+  e login no mesmo ato, e a tela não revela quem tem conta. Autorização
+  verificada em três camadas independentes — e o proxy **não** é uma delas
+- ✅ **Persistência ligada de verdade** (SPEC-009): a análise é gravada no
+  PostgreSQL e sobrevive ao reinício. Verificado derrubando o processo
+- ✅ SPEC-001 a SPEC-009, seis ADRs e documentos de arquitetura
 
 O que **não** existe:
 
-- ❌ Persistência **ligada na aplicação** — o adaptador existe e está testado,
-  mas a raiz de composição ainda monta repositórios em memória, porque
-  `channel_analyses.user_id` referencia `auth.users` e ainda não há usuário real.
-  Análises somem ao reiniciar
-- ❌ Cadastro ou login; o dono da análise é um identificador fixo de demonstração
+- ❌ **Histórico na tela** — a análise fica guardada, mas `/analise` só mostra o
+  resultado da execução recém-disparada. O dado está lá; falta a tela que o busca
 - ❌ Relatório de IA — por isso a análise termina em `partially_completed`
+- ❌ Login com Google — adiado com motivo registrado no ADR-006
 - ❌ Mais de 50 vídeos por análise; dados privados do canal (exigiria OAuth)
 - ❌ Extensão Chrome, pagamentos, dashboard
 
 ## Stack
 
-| Camada                   | Tecnologia                 |
-| ------------------------ | -------------------------- |
-| Framework                | Next.js 16 (App Router)    |
-| Linguagem                | TypeScript 5, modo estrito |
-| Interface                | React 19, Tailwind CSS 4   |
-| Validação                | Zod 4                      |
-| Testes                   | Vitest 4                   |
-| Banco (planejado)        | PostgreSQL via Supabase    |
-| Autenticação (planejada) | Supabase Auth              |
-| Dados (planejado)        | YouTube Data API v3        |
-| IA (planejada)           | Claude API                 |
-| E2E (etapa futura)       | Playwright                 |
+| Camada             | Tecnologia                 |
+| ------------------ | -------------------------- |
+| Framework          | Next.js 16 (App Router)    |
+| Linguagem          | TypeScript 5, modo estrito |
+| Interface          | React 19, Tailwind CSS 4   |
+| Validação          | Zod 4                      |
+| Testes             | Vitest 4                   |
+| Banco              | PostgreSQL via Supabase    |
+| Autenticação       | Supabase Auth (magic link) |
+| Dados              | YouTube Data API v3        |
+| IA (planejada)     | Claude API                 |
+| E2E (etapa futura) | Playwright                 |
 
 ### Dependências instaladas e por quê
 
-| Pacote                                | Tipo | Justificativa                                                                                                                     |
-| ------------------------------------- | ---- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `next`, `react`, `react-dom`          | prod | Framework e interface (ADR-002)                                                                                                   |
-| `@supabase/supabase-js`               | prod | Cliente oficial do PostgreSQL/Supabase (ADR-003). Usado **apenas** em `infrastructure`; R2 impede que alcance domain/application  |
-| `zod`                                 | prod | Valida entrada de UI **e** resposta de API externa antes de virar tipo de domínio. Único validador; sem duplicar responsabilidade |
-| `typescript`, `@types/*`              | dev  | Tipagem estrita                                                                                                                   |
-| `tailwindcss`, `@tailwindcss/postcss` | dev  | Estilo                                                                                                                            |
-| `eslint`, `eslint-config-next`        | dev  | Lint e base para as regras de fronteira                                                                                           |
-| `prettier`                            | dev  | Formatação consistente                                                                                                            |
-| `vitest`                              | dev  | Testes unitários e arquiteturais                                                                                                  |
+| Pacote                                | Tipo | Justificativa                                                                                                                                                                                                                                    |
+| ------------------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `next`, `react`, `react-dom`          | prod | Framework e interface (ADR-002)                                                                                                                                                                                                                  |
+| `@supabase/supabase-js`               | prod | Cliente oficial do PostgreSQL/Supabase (ADR-003). Usado **apenas** em `infrastructure`; R2 impede que alcance domain/application                                                                                                                 |
+| `@supabase/ssr`                       | prod | Sessão por cookie no App Router (ADR-006). O `supabase-js` guarda a sessão no `localStorage`, que não existe no servidor — e a análise roda no servidor por obrigação. Escrever à mão significaria reimplementar PKCE e rotação de refresh token |
+| `zod`                                 | prod | Valida entrada de UI **e** resposta de API externa antes de virar tipo de domínio. Único validador; sem duplicar responsabilidade                                                                                                                |
+| `typescript`, `@types/*`              | dev  | Tipagem estrita                                                                                                                                                                                                                                  |
+| `tailwindcss`, `@tailwindcss/postcss` | dev  | Estilo                                                                                                                                                                                                                                           |
+| `eslint`, `eslint-config-next`        | dev  | Lint e base para as regras de fronteira                                                                                                                                                                                                          |
+| `prettier`                            | dev  | Formatação consistente                                                                                                                                                                                                                           |
+| `vitest`                              | dev  | Testes unitários e arquiteturais                                                                                                                                                                                                                 |
 
 **Deliberadamente ausentes:** `googleapis` e `@anthropic-ai/sdk` — nenhuma dessas
 integrações foi iniciada; Playwright, adiado para etapa futura;
 `eslint-plugin-boundaries`, porque `no-restricted-imports` já é nativo do ESLint;
-`@supabase/ssr`, que trata sessão via cookie e pertence à SPEC de autenticação;
 o **Supabase CLI como dependência**, porque exige Docker para funcionar — os
 scripts `db:*` o baixam sob demanda via `npx`; e **qualquer ORM** (Prisma,
 Drizzle, TypeORM), que exigiria ADR próprio contra a decisão de migrations SQL
@@ -119,29 +131,41 @@ explícitas do ADR-003.
 git clone <url-do-repositorio>
 cd minerador-youtube
 npm install
-cp .env.example .env.local   # opcional nesta etapa: nada exige chave ainda
+
+npm run db:start             # sobe o Supabase local (exige Docker)
+cp .env.example .env.local   # preencha com o que `db:start` imprimiu
+
 npm run verify               # confirma que a fundação está íntegra
 npm run dev                  # http://localhost:3000
 ```
 
-## Variáveis de ambiente planejadas
+Em desenvolvimento, o link de acesso **não é enviado de verdade**: ele aparece na
+caixa de entrada local em `http://localhost:54324`.
 
-Nenhuma é obrigatória nesta etapa — o projeto roda sem chave nenhuma. Cada SPEC
-que ativar uma integração torna as suas variáveis obrigatórias. Schema completo
-em `src/config/env.ts`.
+## Variáveis de ambiente
 
-| Variável                        | Segredo? | Para quê                               |
-| ------------------------------- | :------: | -------------------------------------- |
-| `APP_URL`                       |   não    | URL base da aplicação                  |
-| `NEXT_PUBLIC_SUPABASE_URL`      |   não    | Endpoint do projeto Supabase           |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` |   não    | Chave pública, protegida por RLS       |
-| `SUPABASE_SERVICE_ROLE_KEY`     | **sim**  | Acesso administrativo — **ignora RLS** |
-| `YOUTUBE_API_KEY`               | **sim**  | YouTube Data API v3                    |
-| `YOUTUBE_DAILY_QUOTA_LIMIT`     |   não    | Teto diário de unidades de quota       |
-| `ANTHROPIC_API_KEY`             | **sim**  | Claude API                             |
-| `ANTHROPIC_MODEL`               |   não    | Modelo usado nos relatórios            |
-| `AI_MAX_OUTPUT_TOKENS`          |   não    | Teto de tokens por relatório           |
-| `ANALYSIS_FRESHNESS_HOURS`      |   não    | Janela de reuso de análise (RN-10)     |
+Schema completo em `src/config/env.ts`.
+
+| Variável                        | Obrigatória? | Segredo? | Para quê                               |
+| ------------------------------- | :----------: | :------: | -------------------------------------- |
+| `NEXT_PUBLIC_SUPABASE_URL`      |   **sim**    |   não    | Endpoint do projeto Supabase           |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` |   **sim**    |   não    | Chave pública, protegida por RLS       |
+| `SUPABASE_SERVICE_ROLE_KEY`     |   **sim**    | **sim**  | Acesso administrativo — **ignora RLS** |
+| `APP_URL`                       |     não      |   não    | URL base; destino do link de acesso    |
+| `YOUTUBE_API_KEY`               |     não      | **sim**  | YouTube Data API v3                    |
+| `YOUTUBE_DAILY_QUOTA_LIMIT`     |     não      |   não    | Teto diário de unidades de quota       |
+| `ANTHROPIC_API_KEY`             |     não      | **sim**  | Claude API                             |
+| `ANTHROPIC_MODEL`               |     não      |   não    | Modelo usado nos relatórios            |
+| `AI_MAX_OUTPUT_TOKENS`          |     não      |   não    | Teto de tokens por relatório           |
+| `ANALYSIS_FRESHNESS_HOURS`      |     não      |   não    | Janela de reuso de análise (RN-10)     |
+
+> **As três do Supabase são obrigatórias e a aplicação falha sem elas**, nomeando
+> a que falta. Não há modo em memória nem sessão de demonstração: uma sessão
+> falsa escolhida por engano faria de todos os visitantes o mesmo usuário, e nada
+> na tela denunciaria. Ver a seção 6 da SPEC-009.
+>
+> Em produção, `APP_URL` **precisa** ser a URL real — o link do e-mail aponta
+> para ela, e um valor de desenvolvimento mandaria o usuário para `localhost`.
 
 > **Segredo nunca usa o prefixo `NEXT_PUBLIC_`** — esse prefixo embute o valor no
 > bundle do navegador. `src/config/env.ts` lança se for importado no cliente, e
@@ -261,6 +285,7 @@ Detalhes e proibições em `CLAUDE.md`.
 | [SPEC-006](docs/specs/SPEC-006-composition-and-analysis-surface.md)      | Raiz de composição, Server Action e tela de análise      |
 | [SPEC-007](docs/specs/SPEC-007-youtube-data-api-adapter.md)              | Integração com a YouTube Data API e economia de quota    |
 | [SPEC-008](docs/specs/SPEC-008-collection-run-persistence.md)            | Adaptador Supabase das coletas e conclusão transacional  |
+| [SPEC-009](docs/specs/SPEC-009-authentication-and-live-persistence.md)   | Acesso por link de e-mail e persistência ligada          |
 | [Visão da arquitetura](docs/architecture/overview.md)                    | Camadas, fluxo da análise, limites, filas no futuro      |
 | [Regras de dependência](docs/architecture/dependency-rules.md)           | R1–R9 e como são verificadas                             |
 | [ADR-001](docs/adr/ADR-001-modular-monolith.md)                          | Monólito modular                                         |
@@ -268,3 +293,4 @@ Detalhes e proibições em `CLAUDE.md`.
 | [ADR-003](docs/adr/ADR-003-postgresql-supabase.md)                       | PostgreSQL via Supabase                                  |
 | [ADR-004](docs/adr/ADR-004-external-integrations.md)                     | Integrações atrás de contratos                           |
 | [ADR-005](docs/adr/ADR-005-persistence-boundaries-and-analysis-reuse.md) | Fronteiras de persistência e reuso de análises           |
+| [ADR-006](docs/adr/ADR-006-cookie-session-with-supabase-auth.md)         | Sessão por cookie, magic link e onde a autorização mora  |

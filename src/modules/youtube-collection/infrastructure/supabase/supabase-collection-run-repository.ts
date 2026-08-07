@@ -16,6 +16,7 @@ import { ACTIVE_COLLECTION_RUN_STATUSES } from '../../domain/collection-run';
 import type { CollectionRun, CollectionRunId } from '../../domain/collection-run';
 import { ConcurrentCollectionRunError } from '../../domain/errors/concurrent-collection-run';
 import type { YouTubeChannelId } from '../../domain/youtube-channel';
+import { ensureChannelRegistered, findInternalChannelId } from './channel-registration';
 import {
   SOURCE_SCHEMA_VERSION,
   fromCollectionRun,
@@ -244,49 +245,16 @@ export class SupabaseCollectionRunRepository implements CollectionRunRepository 
 
   // -------------------------------------------------------------------------
   // Travessia entre `UC...` e o uuid interno
+  //
+  // A implementacao vive em `channel-registration.ts`, compartilhada com
+  // `SupabaseChannelDirectory`. Duas copias divergiriam na primeira correcao.
   // -------------------------------------------------------------------------
 
-  private async findInternalChannelId(channelId: YouTubeChannelId): Promise<string | null> {
-    const { data, error } = await this.client
-      .from('youtube_channels')
-      .select('id')
-      .eq('youtube_channel_id', channelId)
-      .maybeSingle();
-
-    if (error !== null) {
-      if (isNoRowsReturned(error)) return null;
-      throw translatePostgresError(error, 'collectionRun.findInternalChannelId');
-    }
-    if (data === null) return null;
-
-    return (data as Record<string, unknown>)['id'] as string;
+  private findInternalChannelId(channelId: YouTubeChannelId): Promise<string | null> {
+    return findInternalChannelId(this.client, channelId, 'collectionRun.findInternalChannelId');
   }
 
-  /**
-   * Devolve o uuid interno do canal, criando a linha se ela nao existir.
-   *
-   * `upsert` com `ignoreDuplicates` em vez de "consultar e depois inserir": duas
-   * analises do mesmo canal novo chegando juntas violariam o UNIQUE de
-   * `youtube_channel_id`, e isso nao e conflito de negocio — e a mesma coisa
-   * sendo registrada duas vezes.
-   */
-  private async ensureChannel(channelId: YouTubeChannelId): Promise<string> {
-    const existing = await this.findInternalChannelId(channelId);
-    if (existing !== null) return existing;
-
-    const { error } = await this.client
-      .from('youtube_channels')
-      .upsert(
-        { youtube_channel_id: channelId },
-        { onConflict: 'youtube_channel_id', ignoreDuplicates: true },
-      );
-
-    if (error !== null) throw translatePostgresError(error, 'collectionRun.ensureChannel');
-
-    const created = await this.findInternalChannelId(channelId);
-    if (created === null) {
-      throw new NotFoundError('Canal nao pode ser registrado.', { channelId });
-    }
-    return created;
+  private ensureChannel(channelId: YouTubeChannelId): Promise<string> {
+    return ensureChannelRegistered(this.client, channelId, 'collectionRun.ensureChannel');
   }
 }
