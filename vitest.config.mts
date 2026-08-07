@@ -15,6 +15,14 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
-    exclude: ['node_modules/**', '.next/**', 'tests/e2e/**'],
+    /**
+     * `tests/integration/` fica FORA da execucao padrao, e nao por descuido.
+     *
+     * Aqueles testes exigem o Supabase local no ar. Inclui-los aqui faria
+     * `npm run verify` — o comando que diz se o codigo esta pronto — depender de
+     * Docker, e ele passaria a falhar em qualquer maquina sem a stack subida.
+     * Rode-os com `npm run test:integration`.
+     */
+    exclude: ['node_modules/**', '.next/**', 'tests/e2e/**', 'tests/integration/**'],
   },
 });

@@ -53,12 +53,17 @@ O que existe:
   `/user/` e `/c/` para o ID oficial, coleta canal e vídeos recentes, e gasta
   **3 unidades de quota por análise** — `search.list`, que custa 100, não é
   usada em caminho algum
-- ✅ SPEC-001 a SPEC-007, cinco ADRs e documentos de arquitetura
+- ✅ **Adaptador Supabase das coletas** (SPEC-008): grava e lê execuções de
+  coleta no Postgres real, conclui em **uma transação** e de forma idempotente —
+  **21 testes de integração** contra o banco de verdade
+- ✅ SPEC-001 a SPEC-008, cinco ADRs e documentos de arquitetura
 
 O que **não** existe:
 
-- ❌ Persistência **ligada na aplicação** — o esquema está validado, mas a raiz
-  de composição ainda monta repositórios em memória. Análises somem ao reiniciar
+- ❌ Persistência **ligada na aplicação** — o adaptador existe e está testado,
+  mas a raiz de composição ainda monta repositórios em memória, porque
+  `channel_analyses.user_id` referencia `auth.users` e ainda não há usuário real.
+  Análises somem ao reiniciar
 - ❌ Cadastro ou login; o dono da análise é um identificador fixo de demonstração
 - ❌ Relatório de IA — por isso a análise termina em `partially_completed`
 - ❌ Mais de 50 vídeos por análise; dados privados do canal (exigiria OAuth)
@@ -164,6 +169,7 @@ npm run db:reset     # aplica migrations + seed em banco limpo
 npm run db:test      # testes pgTAP de supabase/tests/database/
 npm run db:types     # gera os tipos TypeScript a partir do banco local
 npm run db:stop
+npm run test:integration   # adaptadores contra o banco local, com cliente real
 ```
 
 > `npm run verify` **não** depende do banco: a verificação de rotina não exige
@@ -254,6 +260,7 @@ Detalhes e proibições em `CLAUDE.md`.
 | [SPEC-005](docs/specs/SPEC-005-analysis-metrics-persistence.md)          | Cálculo e persistência das métricas da análise           |
 | [SPEC-006](docs/specs/SPEC-006-composition-and-analysis-surface.md)      | Raiz de composição, Server Action e tela de análise      |
 | [SPEC-007](docs/specs/SPEC-007-youtube-data-api-adapter.md)              | Integração com a YouTube Data API e economia de quota    |
+| [SPEC-008](docs/specs/SPEC-008-collection-run-persistence.md)            | Adaptador Supabase das coletas e conclusão transacional  |
 | [Visão da arquitetura](docs/architecture/overview.md)                    | Camadas, fluxo da análise, limites, filas no futuro      |
 | [Regras de dependência](docs/architecture/dependency-rules.md)           | R1–R9 e como são verificadas                             |
 | [ADR-001](docs/adr/ADR-001-modular-monolith.md)                          | Monólito modular                                         |

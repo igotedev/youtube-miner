@@ -17,6 +17,14 @@ export type YouTubeVideoId = Brand<string, 'YouTubeVideoId'>;
 export type VideoFormat = 'short' | 'long' | 'unknown';
 
 /**
+ * Os tres formatos possiveis, para validar o que vem de fora.
+ *
+ * Espelha a constraint `youtube_video_snapshots_format` no banco. Se um dia um
+ * quarto formato existir, os dois precisam mudar juntos.
+ */
+export const VIDEO_FORMATS = ['short', 'long', 'unknown'] as const;
+
+/**
  * Dados publicos de um video, como vieram da API.
  *
  * Assim como no canal, contadores ausentes sao `null` (RN-08). Comentarios e

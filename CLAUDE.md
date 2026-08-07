@@ -19,11 +19,17 @@ relatório textual gerado por IA.
 de ponta a ponta — URL → referência normalizada → coleta na YouTube Data API →
 métricas → estado terminal — e há uma tela em `/analise` que a dispara.
 
-O que ainda **não** existe: persistência ligada à aplicação (o esquema da
-SPEC-004 está validado — migração aplicada, 108 asserções pgTAP passando — mas a
-raiz de composição ainda monta repositórios em memória), autenticação, e
+O que ainda **não** existe: persistência ligada à aplicação, autenticação, e
 relatório de IA. Sem `YOUTUBE_API_KEY` a aplicação sobe com o fixture e declara
 isso na tela.
+
+**Sobre a persistência.** O esquema está validado (108 asserções pgTAP) e o
+adaptador Supabase das coletas existe e passa 21 testes de integração contra o
+Postgres real (SPEC-008). Mesmo assim a raiz de composição continua montando
+repositórios em memória, e isso é intencional: `channel_analyses.user_id`
+referencia `auth.users`, e o usuário de demonstração é um UUID inventado. Trocar
+o adaptador antes da autenticação produziria violação de chave estrangeira na
+primeira análise. **Autenticação primeiro, persistência depois.**
 
 **Custo de quota é restrição de projeto** (SPEC-007): uma análise gasta 3
 unidades de 10.000 diárias. `search.list` custa 100 e não pode ser usada.
@@ -81,6 +87,7 @@ npm run lint         # ESLint, inclui as regras de fronteira
 npm run lint:fix
 npm test             # Vitest, uma passada
 npm run test:watch
+npm run test:integration  # testes contra o Supabase local — exige Docker, fora do verify
 npm run format       # Prettier
 npm run format:check
 ```
@@ -216,6 +223,7 @@ Regras:
 | `docs/specs/SPEC-005-analysis-metrics-persistence.md`           | cálculo e persistência das métricas; reuso do cálculo               |
 | `docs/specs/SPEC-006-composition-and-analysis-surface.md`       | raiz de composição, Server Action e primeira tela do pipeline       |
 | `docs/specs/SPEC-007-youtube-data-api-adapter.md`               | integração real com a YouTube Data API; economia de quota           |
+| `docs/specs/SPEC-008-collection-run-persistence.md`             | adaptador Supabase das coletas; conclusão transacional; permissões  |
 | `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                 |
 | `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                    |
 | `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                            |
