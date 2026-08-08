@@ -26,8 +26,10 @@ e **não exibe dado indisponível como zero**.
 > `/historico` lista as suas análises anteriores, e `/analise/[id]` reabre
 > qualquer uma delas sem recoletar nada nem gastar quota.
 >
-> Falta o relatório de IA — por isso a análise termina em
-> `partially_completed`.
+> A análise termina com uma **leitura textual gerada por IA**, exibida separada
+> dos números e identificada como tal. É **gratuita**: usa a camada sem custo do
+> Gemini — que em troca usa os dados enviados para treinar modelos do Google.
+> Sem `GEMINI_API_KEY`, o texto é um exemplo que se anuncia como exemplo.
 >
 > **O Supabase é obrigatório.** Sem ele a aplicação falha, dizendo qual variável
 > falta. Não há modo em memória nem sessão de demonstração — ver a seção 6 da
@@ -40,7 +42,7 @@ O que existe:
 
 - ✅ Projeto Next.js 16 com App Router, TypeScript estrito, Tailwind 4 e ESLint
 - ✅ Seis módulos de negócio com fronteiras verificadas automaticamente
-- ✅ Contratos (portas) para YouTube, Claude, persistência e autenticação
+- ✅ Contratos (portas) para YouTube, IA, persistência e autenticação
 - ✅ Um fluxo vertical executável com adaptadores falsos, provando a arquitetura
 - ✅ Os oito estados de uma análise, definidos e testados
 - ✅ **Validação e normalização de referências de canal** (SPEC-002): função pura
@@ -76,11 +78,16 @@ O que existe:
   mais recente para a mais antiga e `/analise/[id]` reabre qualquer uma delas —
   **sem migração, sem chamada externa e sem gastar quota**. O índice que a
   consulta usa existia desde a SPEC-004, sem chamador
-- ✅ SPEC-001 a SPEC-010, seis ADRs e documentos de arquitetura
+- ✅ **Relatório de IA** (SPEC-011): leitura textual gerada pelo Gemini a partir
+  das métricas **já calculadas** — a IA nunca vê os números brutos, então não
+  tem como calcular (RN-14). Saída restrita por esquema e validada com Zod,
+  **sem nenhuma dependência nova**. Falha da IA degrada para
+  `partially_completed` sem tocar nos números
+- ✅ SPEC-001 a SPEC-011, sete ADRs e documentos de arquitetura
 
 O que **não** existe:
 
-- ❌ Relatório de IA — por isso a análise termina em `partially_completed`
+- ❌ Watchlists — a nona e última capacidade do MVP que falta
 - ❌ Paginação, busca ou filtro no histórico — teto fixo de 50 análises, que a
   tela declara quando é atingido
 - ❌ Login com Google — adiado com motivo registrado no ADR-006
@@ -99,7 +106,7 @@ O que **não** existe:
 | Banco              | PostgreSQL via Supabase    |
 | Autenticação       | Supabase Auth (magic link) |
 | Dados              | YouTube Data API v3        |
-| IA (planejada)     | Claude API                 |
+| IA                 | Gemini API (camada grátis) |
 | E2E (etapa futura) | Playwright                 |
 
 ### Dependências instaladas e por quê
@@ -160,9 +167,8 @@ Schema completo em `src/config/env.ts`.
 | `APP_URL`                       |     não      |   não    | URL base; destino do link de acesso    |
 | `YOUTUBE_API_KEY`               |     não      | **sim**  | YouTube Data API v3                    |
 | `YOUTUBE_DAILY_QUOTA_LIMIT`     |     não      |   não    | Teto diário de unidades de quota       |
-| `ANTHROPIC_API_KEY`             |     não      | **sim**  | Claude API                             |
-| `ANTHROPIC_MODEL`               |     não      |   não    | Modelo usado nos relatórios            |
-| `AI_MAX_OUTPUT_TOKENS`          |     não      |   não    | Teto de tokens por relatório           |
+| `GEMINI_API_KEY`                |     não      | **sim**  | Gemini API — relatório de IA           |
+| `GEMINI_MODEL`                  |     não      |   não    | Modelo usado nos relatórios            |
 | `ANALYSIS_FRESHNESS_HOURS`      |     não      |   não    | Janela de reuso de análise (RN-10)     |
 
 > **As três do Supabase são obrigatórias e a aplicação falha sem elas**, nomeando
@@ -176,6 +182,65 @@ Schema completo em `src/config/env.ts`.
 > **Segredo nunca usa o prefixo `NEXT_PUBLIC_`** — esse prefixo embute o valor no
 > bundle do navegador. `src/config/env.ts` lança se for importado no cliente, e
 > a regra R8 impede leitura de `process.env` fora de `src/config/`.
+
+## Custo
+
+**Rodar este projeto não custa dinheiro.** Esta seção existe para que continue
+assim — e para nomear os três pontos onde isso pode mudar sem ninguém perceber.
+
+### Os três serviços externos, e só eles
+
+O código toca exatamente três hosts. Não há mais nenhuma chamada de rede em
+`src/`, nenhum SDK de serviço pago entre as dependências, e **nenhum
+agendamento, cron ou worker** — nada roda sozinho, só quando alguém pede uma
+análise.
+
+| Serviço                 | Faixa usada                         | Ao estourar o limite                     |
+| ----------------------- | ----------------------------------- | ---------------------------------------- |
+| **Gemini**              | camada gratuita                     | erro `429`. **Não passa a cobrar**       |
+| **YouTube Data API v3** | quota gratuita, 10.000 unidades/dia | erro de quota. **Não passa a cobrar**    |
+| **Supabase**            | local, no seu Docker                | não se aplica — não há projeto hospedado |
+
+### Os freios que estão no código
+
+- **YouTube:** uma análise gasta **3 unidades** — cerca de 3.300 análises por
+  dia dentro da quota. Um contador local (`YOUTUBE_DAILY_QUOTA_LIMIT`) barra
+  antes de a chamada sair, para que um defeito em laço não queime a cota do dia.
+- **Gemini:** **uma chamada por análise, sem retry.** O adaptador usa `fetch`
+  direto justamente por isso — um erro é um erro, não três tentativas.
+- **Idempotência:** uma análise gera no máximo um relatório. Duplo clique não
+  vira duas chamadas.
+
+### As três armadilhas, todas fora do código
+
+**1. A chave do Gemini criada no projeto errado.** É a única que pode virar
+fatura de verdade. O que decide gratuito ou pago **não é a chave — é o projeto
+do Google Cloud a que ela pertence**: projeto sem conta de faturamento vinculada
+permanece na camada gratuita. Vincule faturamento a esse projeto e a mesma chave
+sobe de faixa automaticamente.
+
+> Crie a chave no **Google AI Studio, em um projeto sem faturamento**, e não
+> vincule cartão a ele.
+
+**2. Sair do Supabase local.** Hoje o banco é um container na sua máquina.
+Apontar para `supabase.co` entra na camada gratuita deles — que é gratuita, mas
+tem limites próprios e pausa projetos inativos. Isso é degradação, não
+cobrança; só vira custo se você escolher um plano pago.
+
+**3. Publicar em hospedagem.** Não há configuração de deploy no repositório.
+Quando houver, a decisão é sua — e vale lembrar que a camada gratuita da Vercel
+não cobre uso comercial.
+
+### O que a camada gratuita do Gemini cobra, e não é dinheiro
+
+O Google declara que **entradas e saídas dos modelos gratuitos são usadas para
+melhorar os produtos dele**. O que sai desta aplicação é dado público do YouTube
+ou agregado derivado dele — nada identifica quem pediu a análise. Isso reduz o
+problema; não o elimina. Ver ADR-007, decisão 2.
+
+O limite diário é **por chave, compartilhado por toda a aplicação**: um usuário
+pode esgotar o dia dos outros. Por isso o `429` tem tratamento próprio e a tela
+diz que o limite gratuito acabou, em vez de dizer que o serviço falhou.
 
 ## Comandos
 

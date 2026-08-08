@@ -161,6 +161,8 @@ export function AnalysisForm() {
             metrics={state.metrics}
             requestedPeriod={state.requestedPeriod}
             coverage={state.coverage}
+            insight={state.insight}
+            insightMode={state.insightMode}
           />
         </div>
       )}

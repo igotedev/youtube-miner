@@ -28,7 +28,7 @@ Navegador
 └──────────────────────────────────────────────────────────┘
         │                    │                   │
         ▼                    ▼                   ▼
-   PostgreSQL          YouTube Data API      Claude API
+   PostgreSQL          YouTube Data API      Gemini API
 ```
 
 A seta de `infrastructure` aponta **para cima**. É o ponto central: o domínio
@@ -70,7 +70,7 @@ injeção — a montagem é explícita e acontece em `src/config/composition/`.
 ### infrastructure
 
 Implementações de repositórios, clientes externos, Supabase, YouTube Data API,
-Claude API, cache, persistência, observabilidade.
+Gemini API, cache, persistência, observabilidade.
 
 Toda classe aqui **implementa uma porta declarada acima**. Se um adaptador não
 implementa nenhuma interface de `application`, algo está errado: ou a porta está

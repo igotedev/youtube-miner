@@ -25,8 +25,14 @@ import type { AnalysisRepository } from '../ports/analysis-repository';
  * POR QUE TERMINA EM `partially_completed`, E NAO EM `completed`.
  * A SPEC-001 define `partially_completed` como "dados objetivos validos,
  * relatorio de IA ausente ou invalido" (RN-09). E exatamente esta situacao: as
- * metricas estao corretas e nao ha relatorio, porque o adaptador Claude nao
- * existe. Marcar `completed` afirmaria que um relatorio foi produzido.
+ * metricas estao corretas e ainda nao ha relatorio. Marcar `completed` afirmaria
+ * que um relatorio foi produzido.
+ *
+ * Desde a SPEC-011 o relatorio existe, e `GenerateAnalysisInsight` continua
+ * daqui. Este caso de uso NAO passou a terminar em `generating_insights`: um
+ * estado nao terminal deixaria pendente para sempre a analise cujo relatorio
+ * nunca fosse pedido. Cada caso de uso encerra em estado valido por conta
+ * propria.
  */
 
 export interface CalculateAnalysisMetricsInput {

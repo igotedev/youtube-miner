@@ -3,6 +3,7 @@ export {
   ANALYSIS_STATUSES,
   TERMINAL_ANALYSIS_STATUSES,
   canCalculateMetrics,
+  canGenerateInsight,
   isReusableStatus,
   isTerminalStatus,
   type AnalysisStatus,
@@ -19,6 +20,12 @@ export {
   type CalculateAnalysisMetricsDependencies,
   type CalculateAnalysisMetricsInput,
 } from './application/use-cases/calculate-analysis-metrics';
+export {
+  GenerateAnalysisInsight,
+  type GenerateAnalysisInsightDependencies,
+  type GenerateAnalysisInsightInput,
+  type GenerateAnalysisInsightResult,
+} from './application/use-cases/generate-analysis-insight';
 export {
   ListUserAnalyses,
   MAX_HISTORY_ITEMS,

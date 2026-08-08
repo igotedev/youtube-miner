@@ -1,3 +1,4 @@
+import type { InsightReport, InsightReportRepository } from '@/modules/ai-insights';
 import type { UserId } from '@/modules/identity';
 import type {
   AnalysisPeriod,
@@ -89,6 +90,18 @@ export interface AnalysisMetricsView {
   readonly requestedPeriod: AnalysisPeriod | null;
   /** `null` quando nao houve recorte — sem filtro, nao ha o que explicar. */
   readonly coverage: CollectionCoverage | null;
+  /**
+   * Relatorio de IA, quando existe.
+   *
+   * `null` cobre tres casos que a TELA precisa distinguir e este tipo nao
+   * distingue: sem chave configurada, geracao falhou, ou ainda nao foi pedida.
+   * A consulta nao inventa o motivo — quem exibe sabe se a composicao tem chave
+   * e se a analise passou pela etapa.
+   *
+   * RN-05: vem em campo proprio, ao lado de `metrics` e nunca dentro delas.
+   * Interpretacao e dado calculado sao coisas diferentes e chegam separadas.
+   */
+  readonly insight: InsightReport | null;
 }
 
 export interface GetAnalysisMetricsDependencies {
@@ -99,6 +112,8 @@ export interface GetAnalysisMetricsDependencies {
    * e eles vivem no snapshot da coleta, nao no resultado ja agregado.
    */
   readonly collectionRuns: CollectionRunRepository;
+  /** R7: o relatorio vem pelo contrato de `ai-insights`, nunca por SQL proprio. */
+  readonly insightReports: InsightReportRepository;
 }
 
 export class GetAnalysisMetrics {
@@ -114,12 +129,22 @@ export class GetAnalysisMetrics {
       throw new NotFoundError('Analise nao encontrada.', { analysisId: input.analysisId });
     }
 
+    /**
+     * O relatorio e lido SEMPRE, inclusive quando nao ha metricas.
+     *
+     * Sao dois eixos independentes: uma analise pode ter numeros sem relatorio,
+     * e o contrario nao acontece hoje mas nao e este ponto que deve decidir
+     * isso. Ler junto tambem evita uma segunda consulta na tela.
+     */
+    const insight = await this.deps.insightReports.findByAnalysis(analysis.id);
+
     const empty = {
       analysis,
       metrics: null,
       calculatedAt: null,
       requestedPeriod: input.period ?? null,
       coverage: null,
+      insight,
     } as const;
 
     const resultId = analysis.analyticsResultId;
@@ -139,10 +164,11 @@ export class GetAnalysisMetrics {
         calculatedAt: result.calculatedAt,
         requestedPeriod: null,
         coverage: null,
+        insight,
       };
     }
 
-    return this.buildPeriodView(analysis, result.calculatedAt, input.period);
+    return this.buildPeriodView(analysis, result.calculatedAt, input.period, insight);
   }
 
   /**
@@ -160,6 +186,7 @@ export class GetAnalysisMetrics {
     analysis: Analysis,
     calculatedAt: Date,
     period: AnalysisPeriod,
+    insight: InsightReport | null,
   ): Promise<AnalysisMetricsView> {
     const collectionRunId = analysis.collectionRunId;
     if (collectionRunId === null) {
@@ -169,6 +196,7 @@ export class GetAnalysisMetrics {
         calculatedAt: null,
         requestedPeriod: period,
         coverage: null,
+        insight,
       };
     }
 
@@ -180,6 +208,7 @@ export class GetAnalysisMetrics {
         calculatedAt: null,
         requestedPeriod: period,
         coverage: null,
+        insight,
       };
     }
 
@@ -193,6 +222,7 @@ export class GetAnalysisMetrics {
         calculatedAt: null,
         requestedPeriod: period,
         coverage: null,
+        insight,
       };
     }
 
@@ -208,6 +238,6 @@ export class GetAnalysisMetrics {
       collectedAt: capturedAt,
     });
 
-    return { analysis, metrics, calculatedAt, requestedPeriod: period, coverage };
+    return { analysis, metrics, calculatedAt, requestedPeriod: period, coverage, insight };
   }
 }

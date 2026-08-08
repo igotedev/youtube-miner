@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import type { InsightReport, InsightReportId } from '@/modules/ai-insights';
+import { SupabaseInsightReportRepository } from '@/modules/ai-insights/infrastructure/supabase/supabase-insight-report-repository';
+import { fromInsightReport as fromInsightReportRow } from '@/modules/ai-insights/infrastructure/supabase/insight-report-row';
 import type { Analysis, AnalysisId } from '@/modules/channel-analysis';
 import { SupabaseAnalysisRepository } from '@/modules/channel-analysis/infrastructure/supabase/supabase-analysis-repository';
 import type { UserId } from '@/modules/identity';
@@ -558,5 +561,144 @@ describe('ChannelDirectory.findSummaries', () => {
 
   it('nao vai ao banco quando nada e pedido', async () => {
     expect(await directory.findSummaries([])).toEqual([]);
+  });
+});
+
+/**
+ * Relatorio de IA (SPEC-011).
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE SO APARECE AQUI.
+ *
+ * A tabela `ai_insight_reports` tem quatro `check` que nenhum teste em memoria
+ * exerce: `status` de conjunto fechado, `report` obrigatorio quando concluido,
+ * `report` tem de ser objeto JSON, e tokens nao negativos. O fake aceita
+ * qualquer coisa; o Postgres nao.
+ *
+ * E a cascata: apagar a analise leva o relatorio junto, e essa e a diferenca
+ * entre um artefato do USUARIO e um artefato global (ADR-005).
+ * ---------------------------------------------------------------------------
+ */
+describe('relatorio de IA', () => {
+  const insightReports = new SupabaseInsightReportRepository(client);
+
+  /**
+   * Analise em `partially_completed` — o estado de onde a geracao parte.
+   *
+   * Sem `collectionRunId`: o relatorio nao referencia a coleta, e inventar um
+   * identificador aqui so exercitaria a chave estrangeira da coleta, que ja tem
+   * teste proprio.
+   */
+  async function analisePronta(dono: UserId): Promise<Analysis> {
+    const analysis = buildAnalysis(dono, channelId, { status: 'partially_completed' });
+    await analyses.create(analysis);
+    return analysis;
+  }
+
+  function buildReport(analysisId: AnalysisId, patch: Partial<InsightReport> = {}): InsightReport {
+    return {
+      id: randomUUID() as InsightReportId,
+      analysisId,
+      provider: 'google',
+      model: 'gemini-3.6-flash',
+      promptVersion: '1.0.0',
+      generatedAt: CALCULATED_AT,
+      summary: 'O canal publica com cadencia regular.',
+      likelyNiche: 'Financas pessoais',
+      likelySubNiche: null,
+      titlePatterns: ['Pergunta direta no titulo'],
+      contentOpportunities: [],
+      viralDependencyNotes: null,
+      inputTokens: 1500,
+      outputTokens: 800,
+      ...patch,
+    };
+  }
+
+  it('grava e le o relatorio inteiro, com nulos e listas vazias', async () => {
+    const analysis = await analisePronta(ownerId);
+    const report = buildReport(analysis.id);
+
+    await insightReports.save(report);
+
+    // A ida e volta passa pelo `jsonb` e pelo driver. `null` tem de continuar
+    // `null`, e lista vazia tem de continuar lista vazia.
+    expect(await insightReports.findByAnalysis(analysis.id)).toEqual(report);
+  });
+
+  it('analise sem relatorio devolve null', async () => {
+    const analysis = await analisePronta(ownerId);
+
+    expect(await insightReports.findByAnalysis(analysis.id)).toBeNull();
+  });
+
+  it('tentativa falha e gravada e NAO volta como relatorio', async () => {
+    const analysis = await analisePronta(ownerId);
+
+    await insightReports.saveFailure({
+      analysisId: analysis.id,
+      provider: 'google',
+      model: 'gemini-3.6-flash',
+      promptVersion: '1.0.0',
+      failedAt: CALCULATED_AT,
+      errorCode: 'EXTERNAL_SERVICE_ERROR',
+    });
+
+    // A linha existe para auditoria...
+    const { data } = await client
+      .from('ai_insight_reports')
+      .select('status, error_code')
+      .eq('analysis_id', analysis.id);
+    expect(data).toHaveLength(1);
+
+    // ...e a leitura de relatorio nao a alcanca. Se alcancasse, a tela exibiria
+    // um bloco vazio como se fosse resultado.
+    expect(await insightReports.findByAnalysis(analysis.id)).toBeNull();
+  });
+
+  it('o banco recusa relatorio concluido sem texto', async () => {
+    const analysis = await analisePronta(ownerId);
+
+    // `ai_insight_reports_completed_has_report`. E a garantia que impede um
+    // relatorio vazio de existir como concluido — nenhum teste em memoria a ve.
+    const { error } = await client.from('ai_insight_reports').insert({
+      analysis_id: analysis.id,
+      status: 'completed',
+      provider: 'google',
+      model: 'gemini-3.6-flash',
+      prompt_version: '1.0.0',
+      report: null,
+      completed_at: CALCULATED_AT.toISOString(),
+    });
+
+    expect(error).not.toBeNull();
+  });
+
+  it('o banco recusa contagem de tokens negativa', async () => {
+    const analysis = await analisePronta(ownerId);
+
+    const { error } = await client
+      .from('ai_insight_reports')
+      .insert({ ...fromInsightReportRow(buildReport(analysis.id)), input_tokens: -1 });
+
+    expect(error).not.toBeNull();
+  });
+
+  it('apagar a analise leva o relatorio junto', async () => {
+    const efemero = await createUser();
+    createdUsers.push(efemero);
+
+    const analysis = await analisePronta(efemero);
+    await insightReports.save(buildReport(analysis.id));
+
+    await client.auth.admin.deleteUser(efemero);
+
+    // `on delete cascade` pela analise, que por sua vez cascateia do usuario.
+    // O relatorio e do USUARIO — diferente da coleta, que e global e permanece.
+    const { data } = await client
+      .from('ai_insight_reports')
+      .select('id')
+      .eq('analysis_id', analysis.id);
+    expect(data).toEqual([]);
   });
 });

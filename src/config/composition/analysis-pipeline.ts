@@ -1,7 +1,11 @@
 // Imports de `infrastructure` sao permitidos APENAS aqui (R6).
 import { SupabaseAnalysisRepository } from '@/modules/channel-analysis/infrastructure/supabase/supabase-analysis-repository';
+import { GeminiInsightGenerator } from '@/modules/ai-insights/infrastructure/gemini/gemini-insight-generator';
+import { createFakeInsightGenerator } from '@/modules/ai-insights/infrastructure/fake/fake-insight-generator';
+import { SupabaseInsightReportRepository } from '@/modules/ai-insights/infrastructure/supabase/supabase-insight-report-repository';
 import {
   CalculateAnalysisMetrics,
+  GenerateAnalysisInsight,
   GetAnalysisMetrics,
   ListUserAnalyses,
   StartChannelAnalysis,
@@ -62,8 +66,18 @@ export type CompositionMode = 'demonstration' | 'live';
 
 export interface AnalysisPipeline {
   readonly mode: CompositionMode;
+  /**
+   * A IA esta ligada nesta composicao?
+   *
+   * Independente de `mode`, que fala da origem dos NUMEROS. As duas chaves sao
+   * separadas: da para ter dados reais do YouTube sem relatorio de IA, e o
+   * contrario tambem. Uma flag unica faria a tela afirmar uma das duas coisas
+   * errado.
+   */
+  readonly insightMode: CompositionMode;
   readonly start: StartChannelAnalysis;
   readonly calculateMetrics: CalculateAnalysisMetrics;
+  readonly generateInsight: GenerateAnalysisInsight;
   readonly getMetrics: GetAnalysisMetrics;
   readonly listAnalyses: ListUserAnalyses;
 }
@@ -149,8 +163,34 @@ export function buildAnalysisPipeline(): AnalysisPipeline {
         }
       : buildLiveCollection(apiKey, env.YOUTUBE_DAILY_QUOTA_LIMIT);
 
+  /**
+   * A chave da IA decide se ha relatorio, e a ausencia dela e DEGRADACAO.
+   *
+   * Sem chave, o gerador falso devolve um texto que se anuncia como exemplo e a
+   * analise chega a `completed` com um relatorio visivelmente falso — nunca com
+   * um texto de exemplo passando por relatorio real.
+   *
+   * Diferente do Supabase, que e obrigatorio: uma sessao falsa engana e nada na
+   * tela denuncia; um relatorio que diz ser de exemplo nao engana ninguem.
+   */
+  const geminiKey = env.GEMINI_API_KEY;
+  const insights =
+    geminiKey === undefined
+      ? { mode: 'demonstration' as const, generator: createFakeInsightGenerator() }
+      : {
+          mode: 'live' as const,
+          generator: new GeminiInsightGenerator({
+            apiKey: geminiKey,
+            model: env.GEMINI_MODEL,
+            logger: consoleLogger,
+          }),
+        };
+
+  const insightReports = new SupabaseInsightReportRepository(supabase);
+
   return {
     mode: collection.mode,
+    insightMode: insights.mode,
     start: new StartChannelAnalysis({
       ...shared,
       channelDirectory,
@@ -162,9 +202,16 @@ export function buildAnalysisPipeline(): AnalysisPipeline {
       ...shared,
       analyticsResults,
     }),
+    generateInsight: new GenerateAnalysisInsight({
+      ...shared,
+      analyticsResults,
+      insights: insights.generator,
+      insightReports,
+    }),
     getMetrics: new GetAnalysisMetrics({
       analyses: shared.analyses,
       analyticsResults,
+      insightReports,
       // So e usado quando ha recorte por periodo: o filtro precisa dos videos do
       // snapshot, que o resultado ja agregado nao carrega.
       collectionRuns: shared.collectionRuns,

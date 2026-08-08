@@ -1,6 +1,9 @@
+import type { CompositionMode } from '@/config/composition';
+import type { InsightReport } from '@/modules/ai-insights';
 import type { CollectionCoverage } from '@/modules/channel-analysis';
 import type { AnalysisPeriod, AnalyzedPeriod, ChannelMetrics } from '@/modules/video-analytics';
 
+import { InsightPanel } from './insight-panel';
 import {
   formatAnalysisStatus,
   formatCount,
@@ -30,6 +33,10 @@ interface AnalysisResultProps {
   readonly requestedPeriod: AnalysisPeriod | null;
   /** O que a coleta alcanca. `null` quando nao houve recorte. */
   readonly coverage: CollectionCoverage | null;
+  /** Relatorio de IA. `null` quando nao ha. */
+  readonly insight: InsightReport | null;
+  /** Se a IA esta ligada nesta composicao. */
+  readonly insightMode: CompositionMode;
 }
 
 export function AnalysisResult({
@@ -37,6 +44,8 @@ export function AnalysisResult({
   metrics,
   requestedPeriod,
   coverage,
+  insight,
+  insightMode,
 }: AnalysisResultProps) {
   return (
     <div className="flex flex-col gap-6">
@@ -97,6 +106,13 @@ export function AnalysisResult({
             dinamicas de distribuicao diferentes, e uma media unica descreveria um canal que nao
             existe. Estes numeros descrevem o que foi observado — nao preveem resultado futuro.
           </p>
+
+          {/*
+            O relatorio vem DEPOIS dos paineis e em moldura propria. Entre as
+            linhas de metrica, ele seria lido como tendo a mesma procedencia dos
+            numeros — que e exatamente o que a segunda regra de produto proibe.
+          */}
+          <InsightPanel insight={insight} mode={insightMode} />
         </>
       )}
     </div>

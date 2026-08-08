@@ -1,10 +1,19 @@
 # ADR-004 — Integrações externas atrás de contratos
 
-| Campo        | Valor                     |
-| ------------ | ------------------------- |
-| Status       | Aceita                    |
-| Data         | 2026-08-06                |
-| Relacionadas | ADR-001, ADR-002, ADR-003 |
+| Campo        | Valor                              |
+| ------------ | ---------------------------------- |
+| Status       | Aceita                             |
+| Data         | 2026-08-06                         |
+| Relacionadas | ADR-001, ADR-002, ADR-003, ADR-007 |
+
+> **Nota posterior (2026-08-08).** Este documento cita a **Claude API** como o
+> provedor previsto para `InsightGenerator`. O provedor escolhido na
+> implementação foi outro — **Gemini, na camada gratuita** — pelo motivo
+> registrado no **ADR-007**.
+>
+> O texto abaixo fica como escrito: a decisão que ele tomou não foi _qual_
+> provedor, e sim que **todo provedor fica atrás de uma porta**. A troca custou
+> um arquivo, que é a prova de que a decisão estava certa.
 
 ## Contexto
 

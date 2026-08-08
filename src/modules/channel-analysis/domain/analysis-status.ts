@@ -55,3 +55,23 @@ export function isReusableStatus(status: AnalysisStatus): boolean {
 export function canCalculateMetrics(status: AnalysisStatus): boolean {
   return status === 'collecting_videos' || status === 'calculating_metrics';
 }
+
+/**
+ * A analise esta em ponto de gerar o relatorio de IA?
+ *
+ * `partially_completed` e o caminho normal, e a escolha merece explicacao: e um
+ * estado TERMINAL. O calculo das metricas termina nele de proposito, para que
+ * uma analise cujo relatorio nunca for pedido continue sendo um resultado
+ * valido, e nao um trabalho pendente para sempre.
+ *
+ * `generating_insights` tambem passa, para que uma execucao interrompida no
+ * meio da chamada externa possa ser retomada. A retomada nao gasta tokens duas
+ * vezes: o caso de uso consulta o relatorio existente antes de chamar (SPEC-011,
+ * secao 7).
+ *
+ * `completed` NAO passa: ja ha relatorio, e gerar outro seria gastar dinheiro
+ * para sobrescrever o que existe.
+ */
+export function canGenerateInsight(status: AnalysisStatus): boolean {
+  return status === 'partially_completed' || status === 'generating_insights';
+}

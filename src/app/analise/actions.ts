@@ -153,6 +153,19 @@ export async function analyzeChannel(
       requestedBy: user.id,
     });
 
+    /**
+     * O relatorio de IA. NAO esta dentro do `try` por acaso — ele nao lanca.
+     *
+     * `GenerateAnalysisInsight` trata a falha como degradacao e devolve a
+     * analise em `partially_completed`, com as metricas intactas (RN-09). Nada
+     * aqui precisa saber se deu certo: a leitura seguinte traz o relatorio se
+     * ele existir.
+     */
+    await pipeline.generateInsight.execute({
+      analysisId: finished.id,
+      requestedBy: user.id,
+    });
+
     const view = await pipeline.getMetrics.execute({
       analysisId: finished.id,
       requestedBy: user.id,
@@ -172,11 +185,13 @@ export async function analyzeChannel(
     return {
       status: 'ready',
       mode: pipeline.mode,
+      insightMode: pipeline.insightMode,
       requestedUrl: channelUrl,
       analysisStatus: view.analysis.status,
       metrics: view.metrics,
       requestedPeriod: view.requestedPeriod,
       coverage: view.coverage,
+      insight: view.insight,
     };
   } catch (error) {
     if (error instanceof AppError) {

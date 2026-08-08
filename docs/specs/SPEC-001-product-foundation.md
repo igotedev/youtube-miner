@@ -189,15 +189,15 @@ Definidos em `src/modules/channel-analysis/domain/analysis-status.ts`.
 
 ## 9. Requisitos não funcionais
 
-| Área            | Requisito                                                                                                                 |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Segurança       | Chave de API, service role e token nunca chegam ao navegador. Toda chamada a terceiro parte do servidor.                  |
-| Determinismo    | Dada a mesma entrada, o motor de métricas produz sempre a mesma saída. Tempo é injetado, nunca lido de dentro.            |
-| Custo           | A YouTube Data API tem quota diária e a Claude API cobra por token. Ambos precisam de teto configurável e contabilização. |
-| Degradação      | Falha da IA degrada para `partially_completed`. Falha de quota é comunicada como tal, jamais como dado zerado.            |
-| Testabilidade   | Regra de negócio vive fora de componente React e fora de adaptador, portanto testável sem navegador e sem rede.           |
-| Tipagem         | TypeScript estrito, incluindo `noUncheckedIndexedAccess` — o código estatístico indexa arrays.                            |
-| Rastreabilidade | Toda análise carrega a data e hora da coleta, exibida junto dos números.                                                  |
+| Área            | Requisito                                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Segurança       | Chave de API, service role e token nunca chegam ao navegador. Toda chamada a terceiro parte do servidor.                      |
+| Determinismo    | Dada a mesma entrada, o motor de métricas produz sempre a mesma saída. Tempo é injetado, nunca lido de dentro.                |
+| Custo           | A YouTube Data API tem quota diária e a IA tem limite diário na camada gratuita. Nenhum dos dois cobra ao estourar (ADR-007). |
+| Degradação      | Falha da IA degrada para `partially_completed`. Falha de quota é comunicada como tal, jamais como dado zerado.                |
+| Testabilidade   | Regra de negócio vive fora de componente React e fora de adaptador, portanto testável sem navegador e sem rede.               |
+| Tipagem         | TypeScript estrito, incluindo `noUncheckedIndexedAccess` — o código estatístico indexa arrays.                                |
+| Rastreabilidade | Toda análise carrega a data e hora da coleta, exibida junto dos números.                                                      |
 
 ## 10. Critérios de aceitação desta etapa
 
@@ -214,14 +214,14 @@ Definidos em `src/modules/channel-analysis/domain/analysis-status.ts`.
 
 ## 11. Riscos
 
-| Risco                                                      | Impacto                                     | Mitigação                                                                     |
-| ---------------------------------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- |
-| Quota da YouTube Data API (10.000 unidades/dia por padrão) | Análises param no meio do dia               | Cache de análise (RN-10), teto configurável, `QuotaExceededError` explícito   |
-| Classificação Shorts × longos por duração é aproximada     | Métricas contaminadas                       | Terceiro estado `'unknown'`; critério fixado em SPEC própria, não improvisado |
-| Custo variável da Claude API                               | Margem imprevisível                         | Teto de tokens, contabilização por relatório, relatório sob demanda           |
-| IA produzir texto que soa como previsão                    | Risco de produto e de confiança             | RN-07 e RN-14; relatório separado dos dados e rotulado como interpretação     |
-| Canal muda de handle ou URL                                | Análises órfãs                              | RN-01: a chave é o ID oficial                                                 |
-| Erosão das fronteiras entre módulos                        | Volta ao emaranhado que a arquitetura evita | Regras verificadas em `npm run verify`, não só documentadas                   |
+| Risco                                                      | Impacto                                     | Mitigação                                                                               |
+| ---------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Quota da YouTube Data API (10.000 unidades/dia por padrão) | Análises param no meio do dia               | Cache de análise (RN-10), teto configurável, `QuotaExceededError` explícito             |
+| Classificação Shorts × longos por duração é aproximada     | Métricas contaminadas                       | Terceiro estado `'unknown'`; critério fixado em SPEC própria, não improvisado           |
+| Provedor de IA passar a cobrar (ADR-007)                   | Margem imprevisível                         | Camada gratuita; tokens contabilizados por relatório; trocar de provedor é um adaptador |
+| IA produzir texto que soa como previsão                    | Risco de produto e de confiança             | RN-07 e RN-14; relatório separado dos dados e rotulado como interpretação               |
+| Canal muda de handle ou URL                                | Análises órfãs                              | RN-01: a chave é o ID oficial                                                           |
+| Erosão das fronteiras entre módulos                        | Volta ao emaranhado que a arquitetura evita | Regras verificadas em `npm run verify`, não só documentadas                             |
 
 ## 12. Premissas
 

@@ -26,10 +26,20 @@ const serverEnvSchema = z.object({
   YOUTUBE_API_KEY: z.string().min(1).optional(),
   YOUTUBE_DAILY_QUOTA_LIMIT: z.coerce.number().int().positive().default(10_000),
 
-  // --- Claude API (SPEC futura) ---
-  ANTHROPIC_API_KEY: z.string().min(1).optional(),
-  ANTHROPIC_MODEL: z.string().min(1).default('claude-sonnet-5'),
-  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(4_000),
+  /**
+   * --- Gemini API (SPEC-011) ---
+   *
+   * A chave e OPCIONAL, como a do YouTube: sem ela a analise termina em
+   * `partially_completed` e a tela declara o motivo. Um relatorio ausente e
+   * degradacao visivel, nao falha silenciosa (ADR-007).
+   *
+   * Nao ha teto de tokens de saida: este endpoint nao documenta um campo para
+   * isso, e inventar um produziria um pedido que o provedor ignora em silencio.
+   * O tamanho da resposta e contido pelo ESQUEMA — campos curtos, com limite
+   * verificado na leitura.
+   */
+  GEMINI_API_KEY: z.string().min(1).optional(),
+  GEMINI_MODEL: z.string().min(1).default('gemini-3.6-flash'),
 
   // --- Politica de reuso de analise (RN-10) ---
   ANALYSIS_FRESHNESS_HOURS: z.coerce.number().int().positive().default(24),

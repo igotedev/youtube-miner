@@ -138,6 +138,8 @@ export default async function AnalysisDetailPage({
             metrics={metrics}
             requestedPeriod={null}
             coverage={null}
+            insight={view.insight}
+            insightMode={pipeline.insightMode}
           />
 
           {calculatedAt !== null && (

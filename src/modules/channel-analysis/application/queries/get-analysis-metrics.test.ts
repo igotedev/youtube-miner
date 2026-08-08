@@ -4,6 +4,7 @@ import type { UserId } from '@/modules/identity';
 import type { AnalyticsResult, AnalyticsResultId, ChannelMetrics } from '@/modules/video-analytics';
 import { ANALYTICS_ALGORITHM_VERSION } from '@/modules/video-analytics';
 import { createAnalysisPeriod } from '@/modules/video-analytics';
+import { InMemoryInsightReportRepository } from '@/modules/ai-insights/infrastructure/memory/in-memory-insight-report-repository';
 import { InMemoryAnalyticsResultRepository } from '@/modules/video-analytics/infrastructure/memory/in-memory-analytics-result-repository';
 import type {
   CollectionRunId,
@@ -81,6 +82,7 @@ const RESULT: AnalyticsResult = {
 let analyses: InMemoryAnalysisRepository;
 let analyticsResults: InMemoryAnalyticsResultRepository;
 let collectionRuns: InMemoryCollectionRunRepository;
+let insightReports: InMemoryInsightReportRepository;
 let query: GetAnalysisMetrics;
 
 /** Videos do snapshot, espalhados em torno de janeiro de 2026. */
@@ -143,7 +145,8 @@ beforeEach(() => {
   analyses = new InMemoryAnalysisRepository();
   analyticsResults = new InMemoryAnalyticsResultRepository();
   collectionRuns = new InMemoryCollectionRunRepository();
-  query = new GetAnalysisMetrics({ analyses, analyticsResults, collectionRuns });
+  insightReports = new InMemoryInsightReportRepository();
+  query = new GetAnalysisMetrics({ analyses, analyticsResults, collectionRuns, insightReports });
 });
 
 describe('GetAnalysisMetrics', () => {

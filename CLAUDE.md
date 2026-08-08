@@ -24,8 +24,11 @@ servidor.
 `/historico` lista as análises anteriores do usuário e `/analise/[id]` reabre
 qualquer uma delas, sem recoletar nada e sem gastar quota.
 
-O que ainda **não** existe: relatório de IA — por isso a análise termina em
-`partially_completed`.
+O relatório de IA existe (SPEC-011): a análise chega a `completed` com uma
+leitura textual gerada pelo Gemini, exibida separada dos números. Sem
+`GEMINI_API_KEY` o texto é um exemplo que se anuncia como tal.
+
+O que ainda **não** existe: watchlists — a nona capacidade do MVP.
 
 **Duas exigências de configuração, com naturezas diferentes:**
 
@@ -33,8 +36,9 @@ O que ainda **não** existe: relatório de IA — por isso a análise termina em
   que falta. Não há modo em memória nem sessão de demonstração: uma sessão falsa
   escolhida por engano faria de todos os visitantes o mesmo usuário, e nada na
   tela denunciaria (SPEC-009, seção 6).
-- **`YOUTUBE_API_KEY` é opcional.** Sem ela a coleta usa o fixture e a tela
-  declara isso. Um fixture visível não engana ninguém.
+- **`YOUTUBE_API_KEY` e `GEMINI_API_KEY` são opcionais.** Sem elas, coleta e
+  relatório usam fixtures e a tela declara isso. Um fixture visível não engana
+  ninguém.
 
 **Custo de quota é restrição de projeto** (SPEC-007): uma análise gasta 3
 unidades de 10.000 diárias. `search.list` custa 100 e não pode ser usada.
@@ -74,7 +78,7 @@ Cada módulo separa `domain`, `application`, `infrastructure` e `presentation`
 | ---------------- | -------------------------------------------------------------------- | ----------------------------------------------------------- |
 | `domain`         | entidades, objetos de valor, regras, funções puras, erros de domínio | React, Next, SDKs, I/O                                      |
 | `application`    | casos de uso, comandos, consultas, DTOs, **portas**                  | implementação concreta de dependência externa               |
-| `infrastructure` | adaptadores: Supabase, YouTube, Claude, cache, log                   | regra de negócio                                            |
+| `infrastructure` | adaptadores: Supabase, YouTube, Gemini, cache, log                   | regra de negócio                                            |
 | `presentation`   | páginas, componentes, rotas, Server Actions, validação de entrada    | regra de negócio, chamada a API externa, `new` de adaptador |
 
 Leia `docs/architecture/overview.md` antes de mexer na estrutura.
@@ -245,6 +249,8 @@ Regras:
 | `docs/specs/SPEC-008-collection-run-persistence.md`             | adaptador Supabase das coletas; conclusão transacional; permissões       |
 | `docs/specs/SPEC-009-authentication-and-live-persistence.md`    | acesso por link de e-mail; persistência ligada na composição             |
 | `docs/specs/SPEC-010-analysis-history.md`                       | histórico de análises; leitura no `ChannelDirectory`; teto sem paginação |
+| `docs/specs/SPEC-011-ai-insight-report.md`                      | relatório de IA; saída estruturada; degradação sem chave                 |
+| `docs/specs/SPEC-011-ai-insight-report.md`                      | relatório de IA; saída estruturada; degradação sem chave                 |
 | `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                      |
 | `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                         |
 | `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                                 |
@@ -253,6 +259,7 @@ Regras:
 | `docs/adr/ADR-004-external-integrations.md`                     | por que integrações atrás de contratos                                   |
 | `docs/adr/ADR-005-persistence-boundaries-and-analysis-reuse.md` | dado global × dado do usuário; service role                              |
 | `docs/adr/ADR-006-cookie-session-with-supabase-auth.md`         | magic link; sessão em cookie; `getUser()`; onde a autorização mora       |
+| `docs/adr/ADR-007-gemini-api-for-insight-reports.md`            | provedor do relatório; custo zero e o que a camada gratuita cobra        |
 
 **Consulte a SPEC antes de implementar. Registre um ADR antes de mudar
 arquitetura.** Documento desatualizado é pior que documento ausente — se o
