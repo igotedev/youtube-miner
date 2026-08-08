@@ -133,8 +133,17 @@ explícitas do ADR-003.
 
 ## Requisitos locais
 
-- **Node.js 22.13 ou superior** (ou 20.19+). O `eslint-visitor-keys` exige
-  22.13+; em 22.12 o `npm install` emite `EBADENGINE` mas o projeto funciona.
+- **Node.js 22 ou superior.** Não é preferência: `@supabase/realtime-js` exige
+  `WebSocket` nativo, que o Node só expõe a partir da 22. Em 20 o cliente falha
+  ao ser construído — _"Node.js detected but native WebSocket not found"_ — e a
+  raiz de composição inteira cai junto.
+
+  O `engines` do `package.json` declarava `>=20.9.0` até 2026-08-08, e era falso.
+  Quem descobriu foi a primeira execução do CI, que rodava em 20.
+
+  O `eslint-visitor-keys` pede 22.13+; em 22.12 o `npm install` emite
+  `EBADENGINE` mas o projeto funciona.
+
 - npm 10+
 - Git
 

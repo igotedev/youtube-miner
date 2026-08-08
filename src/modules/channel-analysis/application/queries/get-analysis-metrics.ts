@@ -136,7 +136,7 @@ export class GetAnalysisMetrics {
      * e o contrario nao acontece hoje mas nao e este ponto que deve decidir
      * isso. Ler junto tambem evita uma segunda consulta na tela.
      */
-    const insight = await this.deps.insightReports.findByAnalysis(analysis.id);
+    const insight = await this.deps.insightReports.findByAnalysis(analysis.id, input.requestedBy);
 
     const empty = {
       analysis,

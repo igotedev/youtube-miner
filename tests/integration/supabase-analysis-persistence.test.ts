@@ -623,13 +623,27 @@ describe('relatorio de IA', () => {
 
     // A ida e volta passa pelo `jsonb` e pelo driver. `null` tem de continuar
     // `null`, e lista vazia tem de continuar lista vazia.
-    expect(await insightReports.findByAnalysis(analysis.id)).toEqual(report);
+    expect(await insightReports.findByAnalysis(analysis.id, ownerId)).toEqual(report);
+  });
+
+  it('o relatorio de outro usuario nunca volta', async () => {
+    const estranho = await createUser();
+    createdUsers.push(estranho);
+
+    const analysis = await analisePronta(ownerId);
+    await insightReports.save(buildReport(analysis.id));
+
+    // A tabela NAO tem user_id: o dono vem pelo join com channel_analyses. Este
+    // e o unico lugar que prova que aquele join filtra de verdade — o fake em
+    // memoria usa um mapa proprio e nao exercita SQL nenhum.
+    expect(await insightReports.findByAnalysis(analysis.id, estranho)).toBeNull();
+    expect(await insightReports.findByAnalysis(analysis.id, ownerId)).not.toBeNull();
   });
 
   it('analise sem relatorio devolve null', async () => {
     const analysis = await analisePronta(ownerId);
 
-    expect(await insightReports.findByAnalysis(analysis.id)).toBeNull();
+    expect(await insightReports.findByAnalysis(analysis.id, ownerId)).toBeNull();
   });
 
   it('tentativa falha e gravada e NAO volta como relatorio', async () => {
@@ -653,7 +667,7 @@ describe('relatorio de IA', () => {
 
     // ...e a leitura de relatorio nao a alcanca. Se alcancasse, a tela exibiria
     // um bloco vazio como se fosse resultado.
-    expect(await insightReports.findByAnalysis(analysis.id)).toBeNull();
+    expect(await insightReports.findByAnalysis(analysis.id, ownerId)).toBeNull();
   });
 
   it('o banco recusa relatorio concluido sem texto', async () => {

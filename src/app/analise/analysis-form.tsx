@@ -131,6 +131,21 @@ export function AnalysisForm() {
           </p>
         </fieldset>
 
+        {/*
+          A ESPERA E LONGA E PRECISA SER DECLARADA.
+          Medido: 12 a 20 segundos so na geracao do relatorio, alem da coleta e
+          do calculo. Um botao escrito "Analisando..." por 25 segundos parece
+          travado, e quem acha que travou recarrega a pagina no meio.
+          `aria-live` para que leitores de tela anunciem a mudanca.
+        */}
+        {pending && (
+          <p aria-live="polite" className="text-sm text-muted">
+            <strong>Analisando.</strong> Coletando os videos, calculando as metricas e gerando a
+            leitura por IA — a ultima etapa costuma levar de 10 a 20 segundos. Nao recarregue a
+            pagina.
+          </p>
+        )}
+
         {(state.status === 'invalid' || state.status === 'error') && (
           <p aria-live="polite" role="alert" className="text-sm text-red-500">
             {state.message}

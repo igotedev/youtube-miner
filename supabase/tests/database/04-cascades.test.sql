@@ -5,7 +5,18 @@
 -- PRESERVA os artefatos globais. Um ON DELETE CASCADE no lugar errado faria uma
 -- conta cancelada levar junto coletas que servem a todo mundo.
 --
--- NAO EXECUTADO: Docker e Supabase CLI ausentes. Rodar com `npm run db:test`.
+-- -----------------------------------------------------------------------------
+-- TODA CONTAGEM E ESCOPADA PELAS LINHAS DESTE TESTE.
+--
+-- Ate a auditoria de 2026-08-08 as assercoes contavam a TABELA INTEIRA
+-- (`count(*) from public.x`), e por isso o arquivo so passava sobre um banco
+-- recem-resetado: qualquer linha deixada por uso manual ou por outro teste
+-- quebrava a contagem. Ele falhava por motivo errado, e um teste assim deixa de
+-- ser rede de regressao — vira ruido que todo mundo aprende a ignorar.
+--
+-- Os identificadores abaixo sao fixos e exclusivos deste arquivo. Toda contagem
+-- filtra por eles.
+-- -----------------------------------------------------------------------------
 -- =============================================================================
 
 begin;
@@ -46,7 +57,7 @@ values ('dddddddd-0000-4000-8000-000000000001',
         'bbbbbbbb-0000-4000-8000-000000000001');
 
 insert into public.ai_insight_reports (analysis_id, status, provider, model, prompt_version)
-values ('dddddddd-0000-4000-8000-000000000001', 'pending', 'anthropic', 'modelo', 'v1');
+values ('dddddddd-0000-4000-8000-000000000001', 'pending', 'google', 'modelo', 'v1');
 
 insert into public.watchlists (id, user_id, name)
 values ('eeeeeeee-0000-4000-8000-000000000001',
@@ -62,12 +73,14 @@ select throws_ok(
 
 -- --- Remover a analise leva o relatorio de IA junto --------------------------
 delete from public.channel_analyses where id = 'dddddddd-0000-4000-8000-000000000001';
-select is((select count(*)::int from public.ai_insight_reports), 0,
+select is((select count(*)::int from public.ai_insight_reports
+            where analysis_id = 'dddddddd-0000-4000-8000-000000000001'), 0,
   'relatorio de IA some com a analise');
 
 -- --- Remover a lista leva os itens junto -------------------------------------
 delete from public.watchlists where id = 'eeeeeeee-0000-4000-8000-000000000001';
-select is((select count(*)::int from public.watchlist_items), 0,
+select is((select count(*)::int from public.watchlist_items
+            where watchlist_id = 'eeeeeeee-0000-4000-8000-000000000001'), 0,
   'itens somem com a lista');
 
 -- --- Remover o usuario apaga o que e dele ------------------------------------
@@ -77,28 +90,37 @@ values ('eeeeeeee-0000-4000-8000-000000000002',
 
 delete from auth.users where id = '11111111-1111-4111-8111-111111111111';
 
-select is((select count(*)::int from public.profiles), 0,
+select is((select count(*)::int from public.profiles
+            where id = '11111111-1111-4111-8111-111111111111'), 0,
   'profile some com o usuario');
-select is((select count(*)::int from public.watchlists), 0,
+select is((select count(*)::int from public.watchlists
+            where user_id = '11111111-1111-4111-8111-111111111111'), 0,
   'listas somem com o usuario');
 
 -- --- ...e PRESERVA os artefatos globais --------------------------------------
-select is((select count(*)::int from public.youtube_channels), 1,
+select is((select count(*)::int from public.youtube_channels
+            where id = 'aaaaaaaa-0000-4000-8000-000000000001'), 1,
   'canal global sobrevive a exclusao do usuario');
-select is((select count(*)::int from public.youtube_collection_runs), 1,
+select is((select count(*)::int from public.youtube_collection_runs
+            where id = 'bbbbbbbb-0000-4000-8000-000000000001'), 1,
   'coleta global sobrevive a exclusao do usuario');
-select is((select count(*)::int from public.youtube_channel_snapshots), 1,
+select is((select count(*)::int from public.youtube_channel_snapshots
+            where collection_run_id = 'bbbbbbbb-0000-4000-8000-000000000001'), 1,
   'snapshot de canal sobrevive a exclusao do usuario');
-select is((select count(*)::int from public.video_analytics_results), 1,
+select is((select count(*)::int from public.video_analytics_results
+            where collection_run_id = 'bbbbbbbb-0000-4000-8000-000000000001'), 1,
   'metricas globais sobrevivem a exclusao do usuario');
 
 -- --- Remover a coleta leva os artefatos dela ---------------------------------
 delete from public.youtube_collection_runs where id = 'bbbbbbbb-0000-4000-8000-000000000001';
-select is((select count(*)::int from public.youtube_channel_snapshots), 0,
+select is((select count(*)::int from public.youtube_channel_snapshots
+            where collection_run_id = 'bbbbbbbb-0000-4000-8000-000000000001'), 0,
   'snapshot de canal some com a coleta');
-select is((select count(*)::int from public.youtube_video_snapshots), 0,
+select is((select count(*)::int from public.youtube_video_snapshots
+            where collection_run_id = 'bbbbbbbb-0000-4000-8000-000000000001'), 0,
   'snapshots de video somem com a coleta');
-select is((select count(*)::int from public.video_analytics_results), 0,
+select is((select count(*)::int from public.video_analytics_results
+            where collection_run_id = 'bbbbbbbb-0000-4000-8000-000000000001'), 0,
   'metricas somem com a coleta');
 
 select * from finish();

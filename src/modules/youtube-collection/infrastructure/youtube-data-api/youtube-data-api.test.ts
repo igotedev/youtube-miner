@@ -515,3 +515,49 @@ describe('YouTubeDataApiChannelSource — videos', () => {
     expect(fake.calls[1]?.params['maxResults']).toBe('50');
   });
 });
+
+describe('YouTubeApiClient — a chamada tem fim', () => {
+  it('envia um AbortSignal em toda requisicao', async () => {
+    // O `fetch` do Node nao tem timeout padrao. Sem sinal, uma conexao
+    // pendurada segura a Server Action indefinidamente: tela girando, sem erro
+    // e sem fim, com um processo do servidor preso junto.
+    let recebido: RequestInit | undefined;
+
+    const espiao = ((_input: string | URL | Request, init?: RequestInit) => {
+      recebido = init;
+      return Promise.resolve(new Response(JSON.stringify(CHANNEL_BODY), { status: 200 }));
+    }) as unknown as typeof globalThis.fetch;
+
+    const client = new YouTubeApiClient({
+      apiKey: FAKE_KEY,
+      logger: noopLogger,
+      dailyQuotaLimit: 10_000,
+      fetchImpl: espiao,
+    });
+
+    await new YouTubeDataApiChannelSource(client, noopLogger).fetchChannel(CHANNEL_ID);
+
+    expect(recebido?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('traduz o tempo esgotado em ExternalServiceError, sem vazar a causa', async () => {
+    // `AbortSignal.timeout` rejeita com `TimeoutError`. A mensagem original nao
+    // pode subir: erros de rede costumam embutir a URL, e a URL carrega a chave.
+    const pendurado = (() =>
+      Promise.reject(
+        new DOMException('The operation was aborted due to timeout', 'TimeoutError'),
+      )) as unknown as typeof globalThis.fetch;
+
+    const client = new YouTubeApiClient({
+      apiKey: FAKE_KEY,
+      logger: noopLogger,
+      dailyQuotaLimit: 10_000,
+      fetchImpl: pendurado,
+    });
+
+    const source = new YouTubeDataApiChannelSource(client, noopLogger);
+
+    await expect(source.fetchChannel(CHANNEL_ID)).rejects.toThrow(ExternalServiceError);
+    await expect(source.fetchChannel(CHANNEL_ID)).rejects.not.toThrow(FAKE_KEY);
+  });
+});

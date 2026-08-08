@@ -45,6 +45,18 @@ const QUOTA_REASONS = new Set(['quotaExceeded', 'dailyLimitExceeded', 'rateLimit
 /** Razoes que indicam problema com a propria chave — defeito de configuracao. */
 const KEY_REASONS = new Set(['keyInvalid', 'keyExpired', 'forbidden', 'accessNotConfigured']);
 
+/**
+ * Quanto esperamos por resposta antes de desistir.
+ *
+ * O `fetch` do Node NAO tem timeout padrao. Sem isto, uma conexao pendurada
+ * segura a Server Action indefinidamente: o usuario fica com a tela girando,
+ * sem erro e sem fim, e um processo do servidor fica preso junto.
+ *
+ * 15 s e folgado para tres chamadas que costumam responder em menos de um
+ * segundo. O objetivo nao e ser agressivo — e ter um fim.
+ */
+const TIMEOUT_MS = 15_000;
+
 export interface YouTubeApiClientOptions {
   readonly apiKey: string;
   readonly logger: Logger;
@@ -98,6 +110,7 @@ export class YouTubeApiClient {
       response = await this.fetchImpl(url, {
         method: 'GET',
         headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch {
       // A causa original e descartada de proposito: mensagens de erro de rede

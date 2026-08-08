@@ -40,7 +40,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           # Alinhado com `engines.node` do package.json.
-          node-version: '20'
+          #
+          # 22, e nao 20: `@supabase/realtime-js` exige `WebSocket` nativo, que
+          # o Node so expoe a partir da 22. Em 20 o cliente falha ao ser
+          # construido — "Node.js detected but native WebSocket not found" —
+          # e a raiz de composicao inteira cai junto.
+          #
+          # A primeira execucao deste fluxo rodou em 20 e pegou exatamente isso:
+          # o `engines` declarava `>=20.9.0`, e era falso.
+          node-version: '22'
           cache: npm
 
       # `npm ci` e nao `npm install`: instala exatamente o que esta no

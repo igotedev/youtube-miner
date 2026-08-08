@@ -82,7 +82,7 @@ export class GenerateAnalysisInsight {
      * verificar o estado — uma analise ja `completed` devolve o relatorio que
      * tem, sem gastar um token.
      */
-    const existing = await insightReports.findByAnalysis(analysis.id);
+    const existing = await insightReports.findByAnalysis(analysis.id, input.requestedBy);
     if (existing !== null) {
       logger.info('relatorio ja existe; nada a gerar', { analysisId: analysis.id });
       return { analysis, report: existing };

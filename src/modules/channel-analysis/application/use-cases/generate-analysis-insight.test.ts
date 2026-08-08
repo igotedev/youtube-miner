@@ -158,6 +158,9 @@ beforeEach(async () => {
   analyticsResults = new InMemoryAnalyticsResultRepository();
   collectionRuns = new InMemoryCollectionRunRepository();
   insightReports = new InMemoryInsightReportRepository();
+  // O fake aplica o mesmo filtro por dono que o adaptador real resolve pelo
+  // join. Sem declarar o dono, ele devolve null — como o banco faria.
+  insightReports.setOwner(ANALYSIS_ID, OWNER);
 
   await analyticsResults.save(RESULT);
   await saveSnapshot();
@@ -175,7 +178,7 @@ describe('GenerateAnalysisInsight — caminho feliz', () => {
     // `completed` era inalcancavel antes desta SPEC.
     expect(analysis.status).toBe('completed');
     expect(report).not.toBeNull();
-    expect(await insightReports.findByAnalysis(ANALYSIS_ID)).not.toBeNull();
+    expect(await insightReports.findByAnalysis(ANALYSIS_ID, OWNER)).not.toBeNull();
   });
 
   it('carimba a procedencia — modelo, versao do prompt e instante', async () => {
@@ -266,7 +269,7 @@ describe('GenerateAnalysisInsight — falha e degradacao', () => {
 
     // A tentativa fica gravada para auditoria e NAO volta como resultado. Se
     // voltasse, a tela exibiria um bloco vazio como se fosse relatorio.
-    expect(await insightReports.findByAnalysis(ANALYSIS_ID)).toBeNull();
+    expect(await insightReports.findByAnalysis(ANALYSIS_ID, OWNER)).toBeNull();
   });
 
   it('erro nao previsto tambem degrada, e nao derruba', async () => {

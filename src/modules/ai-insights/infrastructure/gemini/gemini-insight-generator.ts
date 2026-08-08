@@ -38,6 +38,27 @@ const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/interactions'
 /** Quanto esperamos antes de desistir. Sem isto, a tela fica pendurada. */
 const TIMEOUT_MS = 60_000;
 
+/** Tentativas no total: a original mais uma. Ver a nota em `call`. */
+const MAX_ATTEMPTS = 2;
+
+/** Pausa entre as duas. Curta de proposito: alguem esta esperando na tela. */
+const RETRY_DELAY_MS = 500;
+
+/**
+ * Marcador interno de falha que vale repetir.
+ *
+ * NUNCA sobe para quem chama: `call` a converte em `ExternalServiceError`. Ela
+ * existe so para separar, dentro deste arquivo, o que adianta repetir do que
+ * nao adianta.
+ */
+class TransientFailure extends Error {}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 /**
  * Envelope da resposta, validado antes de qualquer leitura.
  *
@@ -148,12 +169,65 @@ export class GeminiInsightGenerator implements InsightGenerator {
   }
 
   /**
-   * A chamada, com os erros traduzidos para `AppError`.
+   * A chamada, com uma repeticao para falha transitoria.
+   *
+   * ---------------------------------------------------------------------------
+   * UMA REPETICAO, E SO PARA FALHA RAPIDA.
+   *
+   * Das nove tentativas registradas na primeira semana, duas falharam por erro
+   * transitorio — e oito chamadas diretas seguidas a API deram 8/8 limpas. Sem
+   * repetir, um soluco de rede custa o relatorio inteiro, e na camada gratuita
+   * repetir nao custa dinheiro.
+   *
+   * O QUE NAO E REPETIDO, E POR QUE:
+   *
+   *  - TEMPO ESGOTADO. O usuario ja esperou o timeout inteiro; repetir dobraria
+   *    a espera de quem ja estava esperando demais. Uma chamada lenta repetida
+   *    tende a ser lenta de novo.
+   *  - 429 e demais 4xx. Limite atingido e credencial recusada nao melhoram com
+   *    insistencia — pioram.
+   *
+   * Sobra o que vale a pena: erro de rede rapido e 5xx. O custo maximo somado e
+   * meio segundo de espera mais uma tentativa.
+   * ---------------------------------------------------------------------------
+   */
+  private async call(request: InsightRequest): Promise<z.infer<typeof responseSchema>> {
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.attempt(request);
+      } catch (error) {
+        lastError = error;
+
+        const isLast = attempt === MAX_ATTEMPTS;
+        if (isLast || !(error instanceof TransientFailure)) break;
+
+        this.options.logger.warn('Falha transitoria na IA; repetindo uma vez.', {
+          operation: 'insight.generate',
+          attempt,
+        });
+        await delay(RETRY_DELAY_MS);
+      }
+    }
+
+    // `TransientFailure` e interno: nunca sobe. Vira o mesmo erro que uma falha
+    // definitiva, porque para quem chama as duas significam a mesma coisa.
+    if (lastError instanceof TransientFailure) {
+      throw new ExternalServiceError('O servico de IA nao respondeu.', {
+        operation: 'insight.generate',
+      });
+    }
+    throw lastError;
+  }
+
+  /**
+   * Uma tentativa, com os erros traduzidos para `AppError`.
    *
    * Nenhuma mensagem do provedor chega ao usuario: ela carrega detalhe interno
    * e pode ecoar o proprio pedido. O que sobe e um codigo estavel.
    */
-  private async call(request: InsightRequest): Promise<z.infer<typeof responseSchema>> {
+  private async attempt(request: InsightRequest): Promise<z.infer<typeof responseSchema>> {
     /**
      * O prompt de sistema vai DENTRO da entrada.
      *
@@ -185,12 +259,26 @@ export class GeminiInsightGenerator implements InsightGenerator {
         }),
         signal: AbortSignal.timeout(TIMEOUT_MS),
       });
-    } catch {
-      // Rede fora, DNS, ou o tempo esgotou. Nada disso invalida a analise.
-      throw new ExternalServiceError('O servico de IA nao respondeu.', {
-        operation: 'insight.generate',
-      });
+    } catch (error) {
+      /**
+       * Rede fora, DNS, ou o tempo esgotou.
+       *
+       * O tempo esgotado NAO e transitorio para efeito de repeticao: o usuario
+       * ja esperou o timeout inteiro. `AbortSignal.timeout` rejeita com
+       * `TimeoutError`, e e por esse nome que os dois casos se separam.
+       */
+      const esgotou = error instanceof Error && error.name === 'TimeoutError';
+      if (esgotou) {
+        throw new ExternalServiceError('O servico de IA demorou demais.', {
+          operation: 'insight.generate',
+        });
+      }
+      throw new TransientFailure();
     }
+
+    // 5xx e o outro caso que vale repetir: o problema e do outro lado e
+    // costuma passar. 4xx nao — ver a nota em `call`.
+    if (response.status >= 500) throw new TransientFailure();
 
     if (!response.ok) {
       throw this.translate(response.status);

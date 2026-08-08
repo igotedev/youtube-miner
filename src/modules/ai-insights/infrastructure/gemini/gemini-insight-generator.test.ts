@@ -245,3 +245,85 @@ describe('GeminiInsightGenerator — erros de HTTP', () => {
     await expect(buildGenerator().generate(REQUEST)).rejects.toThrow(AppError);
   });
 });
+
+describe('GeminiInsightGenerator — repeticao', () => {
+  /** Respostas em fila; cada chamada consome a proxima. */
+  function stubQueue(items: readonly (Response | Error)[]) {
+    let i = 0;
+    const spy = vi.fn(() => {
+      const next = items[i];
+      i += 1;
+      if (next === undefined) throw new Error('fila vazia');
+      return next instanceof Error ? Promise.reject(next) : Promise.resolve(next);
+    });
+    vi.stubGlobal('fetch', spy);
+    return spy;
+  }
+
+  const sucesso = () =>
+    new Response(JSON.stringify(ok()), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+
+  it('repete uma vez em 5xx e aproveita a segunda resposta', async () => {
+    // O problema e do outro lado e costuma passar. Sem repetir, um 503 custa o
+    // relatorio inteiro — e na camada gratuita repetir nao custa dinheiro.
+    const spy = stubQueue([new Response('{}', { status: 503 }), sucesso()]);
+
+    const gerado = await buildGenerator().generate(REQUEST);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(gerado.summary).toBe(CONTEUDO.summary);
+  });
+
+  it('repete uma vez em falha de rede', async () => {
+    const spy = stubQueue([new Error('ECONNRESET'), sucesso()]);
+
+    await buildGenerator().generate(REQUEST);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('desiste depois da segunda, sem terceira tentativa', async () => {
+    const spy = stubQueue([new Error('ECONNRESET'), new Error('ECONNRESET')]);
+
+    await expect(buildGenerator().generate(REQUEST)).rejects.toThrow(AppError);
+    expect(spy).toHaveBeenCalledTimes(2);
+  });
+
+  it('NAO repete quando o tempo esgota', async () => {
+    // O usuario ja esperou o timeout inteiro. Repetir dobraria a espera de quem
+    // ja estava esperando demais.
+    const timeout = new DOMException('aborted due to timeout', 'TimeoutError');
+    const spy = stubQueue([timeout, sucesso()]);
+
+    await expect(buildGenerator().generate(REQUEST)).rejects.toThrow(AppError);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('NAO repete em 429 — insistir piora', async () => {
+    const spy = stubQueue([new Response('{}', { status: 429 }), sucesso()]);
+
+    await expect(buildGenerator().generate(REQUEST)).rejects.toMatchObject({
+      code: 'QUOTA_EXCEEDED',
+    });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('NAO repete em 403 — credencial recusada nao melhora com insistencia', async () => {
+    const spy = stubQueue([new Response('{}', { status: 403 }), sucesso()]);
+
+    await expect(buildGenerator().generate(REQUEST)).rejects.toThrow(AppError);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('NAO repete quando a resposta chega e nao segue o contrato', async () => {
+    // Resposta invalida nao e transitoria: repetir produz a mesma invalidez.
+    const invalida = new Response(JSON.stringify({ isso: 'nao e a resposta' }), { status: 200 });
+    const spy = stubQueue([invalida, sucesso()]);
+
+    await expect(buildGenerator().generate(REQUEST)).rejects.toThrow(AppError);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+});

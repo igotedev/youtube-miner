@@ -1,4 +1,5 @@
 import type { AnalysisId } from '@/modules/channel-analysis';
+import type { UserId } from '@/modules/identity';
 
 import type { InsightReport } from '../../domain/insight-report';
 
@@ -26,8 +27,21 @@ export interface InsightReportRepository {
    * Tentativas que falharam nao voltam por aqui: elas ficam gravadas para
    * auditoria, mas nao sao relatorio. Devolver uma delas faria a tela exibir
    * texto vazio como se fosse resultado.
+   *
+   * ---------------------------------------------------------------------------
+   * O DONO E OBRIGATORIO, E A ASSINATURA E QUE GARANTE ISSO.
+   *
+   * Ate a auditoria de 2026-08-08 este metodo recebia so o `analysisId`. Nao
+   * havia falha: os dois chamadores resolviam a analise por dono antes. Mas a
+   * seguranca dependia da ORDEM DAS CHAMADAS, nao do tipo — e um terceiro
+   * chamador que invertesse a ordem abriria acesso ao relatorio alheio sem o
+   * compilador reclamar.
+   *
+   * E a mesma decisao de `AnalysisRepository.findById(id, ownerId)`: nao existe
+   * busca sem dono, e nao ha como esquecer.
+   * ---------------------------------------------------------------------------
    */
-  findByAnalysis(analysisId: AnalysisId): Promise<InsightReport | null>;
+  findByAnalysis(analysisId: AnalysisId, ownerId: UserId): Promise<InsightReport | null>;
 
   save(report: InsightReport): Promise<void>;
 
