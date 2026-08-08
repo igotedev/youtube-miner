@@ -21,10 +21,37 @@ import type { YouTubeChannelId } from '../../domain/youtube-channel';
  * o segundo caso de uso que a justificava.
  * ---------------------------------------------------------------------------
  *
- * O que NAO esta aqui: leitura. Nao ha `findByOfficialId` — nenhum modulo tem
- * caso de uso para ler o registro do canal, e uma porta com metodo sem chamador
- * e abstracao especulativa. Acrescente quando houver o chamador.
+ * O CHAMADOR DA LEITURA CHEGOU (SPEC-010). Ate aqui esta porta so escrevia, e o
+ * comentario anterior dizia que `findByOfficialId` seria abstracao especulativa
+ * enquanto nenhum modulo precisasse ler o registro. O historico de analises
+ * precisa: a lista mostra DE QUAL CANAL e cada analise, e o titulo vive em
+ * `youtube_channels` — tabela deste modulo, que `channel-analysis` nao pode
+ * consultar (R7).
+ *
+ * Continua nao existindo `findByOfficialId` no singular: ver `findSummaries`.
  */
+
+/**
+ * O que outro modulo pode saber sobre um canal registrado.
+ *
+ * Recorte deliberadamente pequeno: identificacao para exibir em lista, e nada
+ * mais. `YouTubeChannel` completo — inscritos, contagens, descricao — pertence
+ * ao snapshot da coleta, e entrega-lo aqui faria esta porta virar uma segunda
+ * via de leitura dos dados coletados.
+ *
+ * `title` e `handle` sao `string | null` por causa da RN-08, e a ausencia e
+ * comum, nao excepcional: `ensureRegistered` cria a linha ANTES de a coleta
+ * concluir — e a ordem que a SPEC-009 estabeleceu para satisfazer a chave
+ * estrangeira da analise. Um canal cuja coleta falhou nunca teve o titulo
+ * preenchido, e quem exibe precisa poder dizer isso em vez de mostrar a URL
+ * digitada como se fosse o nome do canal.
+ */
+export interface ChannelSummary {
+  readonly id: YouTubeChannelId;
+  readonly title: string | null;
+  readonly handle: string | null;
+}
+
 export interface ChannelDirectory {
   /**
    * Garante que o canal esta registrado, criando o registro se necessario.
@@ -38,4 +65,18 @@ export interface ChannelDirectory {
    * chama fala `UC...`, sempre.
    */
   ensureRegistered(channelId: YouTubeChannelId): Promise<void>;
+
+  /**
+   * Resumo dos canais pedidos, EM LOTE.
+   *
+   * Em lote e nao um por vez porque a lista do historico tem ate 50 analises:
+   * uma consulta por item bateria no banco 50 vezes para montar uma tela. A
+   * assinatura torna o desperdicio impossivel, e nao apenas improvavel.
+   *
+   * DEVOLVE APENAS O QUE ENCONTROU, em ordem nao garantida. Um canal sem
+   * correspondencia simplesmente nao vem — nao e erro. Lancar excecao faria uma
+   * analise orfa derrubar a lista inteira, e quem chama ja precisa lidar com
+   * `title` nulo de qualquer forma.
+   */
+  findSummaries(channelIds: readonly YouTubeChannelId[]): Promise<readonly ChannelSummary[]>;
 }

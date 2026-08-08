@@ -220,15 +220,17 @@ sessão continua reconhecida e as análises continuam no banco. Remover o usuár
 levou as análises junto e preservou os canais globais — o modelo do ADR-005
 funcionando.
 
-## 8. Limitação conhecida
+## 8. Limitação conhecida — resolvida pela SPEC-010
 
-**A tela não lista análises anteriores.** Elas estão persistidas — a consulta do
-banco confirma —, mas `/analise` só mostra o resultado da execução que acabou de
-ser disparada, porque o estado vem do `useActionState`.
+**A tela não listava análises anteriores.** Elas estavam persistidas — a consulta
+do banco confirmava —, mas `/analise` só mostrava o resultado da execução que
+acabara de ser disparada, porque o estado vem do `useActionState`.
 
-Isso é escopo de uma SPEC de histórico, não desta. Registrado aqui para que
-"a análise sumiu" não seja diagnosticado como defeito de persistência: o dado
-está lá, falta a tela que o busca.
+Ficou registrado aqui para que "a análise sumiu" não fosse diagnosticado como
+defeito de persistência: o dado estava lá, faltava a tela que o busca.
+
+A **SPEC-010** construiu essa tela. `/historico` lista as análises do usuário e
+`/analise/[id]` reabre qualquer uma delas.
 
 ## 9. Critérios de aceitação
 
@@ -245,7 +247,7 @@ está lá, falta a tela que o busca.
 
 ## 10. Fora de escopo, registrado
 
-- Histórico de análises na tela (seção 8).
+- Histórico de análises na tela (seção 8) — feito depois, na SPEC-010.
 - Google OAuth — ADR-006 registra o motivo do adiamento e a condição de revisão.
 - Segundo fator, gestão de sessões ativas, exclusão de conta pelo usuário.
 - A dívida do `resolveInternalChannelId` em `SupabaseAnalysisRepository`

@@ -2,19 +2,9 @@
 
 import { useActionState, useState } from 'react';
 
-import type { AnalyzedPeriod } from '@/modules/video-analytics';
-
 import { analyzeChannel } from './actions';
+import { AnalysisResult } from './analysis-result';
 import { INITIAL_ANALYSIS_STATE } from './analysis-state';
-import {
-  formatAnalysisStatus,
-  formatCount,
-  formatDate,
-  formatDateRange,
-  formatIntervalDays,
-  formatTimestamp,
-} from './format';
-import { MetricsPanel } from './metrics-panel';
 import { PERIOD_SHORTCUTS, shortcutRange } from './period-input';
 
 /**
@@ -150,6 +140,12 @@ export function AnalysisForm() {
 
       {state.status === 'ready' && (
         <div className="flex flex-col gap-6">
+          {/*
+            O aviso vive AQUI, e nao em `AnalysisResult`, porque so nesta tela
+            ele e verdade sem ressalva: a analise acabou de rodar, nesta
+            composicao. A tela de detalhe le uma analise antiga e nao tem como
+            saber em que modo ela foi executada.
+          */}
           {state.mode === 'demonstration' && (
             <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
               <strong>Dados de demonstracao.</strong> Nenhuma consulta foi feita ao YouTube. Os
@@ -160,164 +156,14 @@ export function AnalysisForm() {
             </p>
           )}
 
-          {state.requestedPeriod !== null && (
-            <PeriodSummary
-              period={state.requestedPeriod}
-              coverage={state.coverage}
-              analyzed={state.metrics.totalVideoCount}
-            />
-          )}
-
-          <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-            <div className="flex gap-2">
-              <dt className="text-muted">Estado</dt>
-              <dd>{formatAnalysisStatus(state.analysisStatus)}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-muted">Coletado em</dt>
-              <dd className="font-mono">{formatTimestamp(state.metrics.collectedAt)} UTC</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-muted">Videos analisados</dt>
-              <dd className="font-mono">{formatCount(state.metrics.totalVideoCount)}</dd>
-            </div>
-            <div className="flex gap-2">
-              <dt className="text-muted">Sem formato definido</dt>
-              <dd className="font-mono">{formatCount(state.metrics.unclassifiedVideoCount)}</dd>
-            </div>
-          </dl>
-
-          {/*
-            Zero videos e um RESULTADO VALIDO, nao uma falha: o intervalo pedido
-            simplesmente nao tem video. Exibir os paineis zerados sugeriria um
-            canal sem visualizacoes, que e outra afirmacao (RN-08).
-          */}
-          {state.metrics.totalVideoCount === 0 ? (
-            <p className="rounded-md border border-border px-4 py-3 text-sm">
-              Nao foram encontrados videos no periodo selecionado.
-            </p>
-          ) : (
-            <>
-              {/* RN-06: dois paineis separados, e nenhum total agregado entre eles. */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <MetricsPanel
-                  title="Shorts"
-                  caption="Metricas calculadas apenas sobre os Shorts."
-                  metrics={state.metrics.shorts}
-                />
-                <MetricsPanel
-                  title="Videos longos"
-                  caption="Metricas calculadas apenas sobre os videos longos."
-                  metrics={state.metrics.long}
-                />
-              </div>
-
-              <p className="text-xs text-muted">
-                Shorts e videos longos nao sao somados nem comparados entre si: sao formatos com
-                dinamicas de distribuicao diferentes, e uma media unica descreveria um canal que nao
-                existe. Estes numeros descrevem o que foi observado — nao preveem resultado futuro.
-              </p>
-            </>
-          )}
+          <AnalysisResult
+            analysisStatus={state.analysisStatus}
+            metrics={state.metrics}
+            requestedPeriod={state.requestedPeriod}
+            coverage={state.coverage}
+          />
         </div>
       )}
     </div>
-  );
-}
-
-/**
- * Resumo do recorte por periodo.
- *
- * Exibe TRES coisas que sao facilmente confundidas e significam coisas
- * diferentes:
- *
- *  - o intervalo PEDIDO;
- *  - o que a coleta ALCANCA (os uploads mais recentes, sem filtro);
- *  - quantos videos sobraram dentro do pedido.
- *
- * Sem a segunda, um resultado vazio pareceria "o canal nao publicou", quando a
- * verdade costuma ser "a coleta nao chega ate la".
- */
-function PeriodSummary({
-  period,
-  coverage,
-  analyzed,
-}: {
-  readonly period: { readonly start: Date; readonly end: Date };
-  readonly coverage: { readonly videoCount: number; readonly period: AnalyzedPeriod } | null;
-  readonly analyzed: number;
-}) {
-  const requestedDays = (period.end.getTime() - period.start.getTime()) / 86_400_000;
-
-  /**
-   * O pedido cai inteiramente fora do que a coleta cobre?
-   *
-   * Neste caso o resultado vazio nao diz nada sobre o canal, e a tela precisa
-   * dizer por que — senao o usuario conclui a coisa errada.
-   *
-   * Os DOIS lados importam, e por motivos diferentes:
-   *
-   *  - antes da cobertura: a coleta traz so os uploads mais recentes e nao
-   *    alcanca aquele passado;
-   *  - depois da cobertura: o canal simplesmente nao publicou desde entao — que
-   *    e uma informacao sobre o canal, e nao uma limitacao da coleta.
-   *
-   * Uma mensagem unica para os dois casos estaria errada em um deles.
-   */
-  const coverageStart = coverage?.period.firstPublishedAt ?? null;
-  const coverageEnd = coverage?.period.lastPublishedAt ?? null;
-  const beforeCoverage = coverageStart !== null && period.end.getTime() < coverageStart.getTime();
-  const afterCoverage = coverageEnd !== null && period.start.getTime() > coverageEnd.getTime();
-
-  return (
-    <section className="flex flex-col gap-2 rounded-md border border-border px-4 py-3 text-sm">
-      <dl className="flex flex-wrap gap-x-8 gap-y-2">
-        <div className="flex gap-2">
-          <dt className="text-muted">Periodo solicitado</dt>
-          <dd className="font-mono">{formatDateRange(period.start, period.end)}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="text-muted">Duracao</dt>
-          {/*
-            Arredondado para cima: de 01/01 00:00 a 31/01 23:59 sao 30,99 dias, e
-            o usuario que digitou esse intervalo conta 31 dias.
-          */}
-          <dd className="font-mono">{formatIntervalDays(Math.ceil(requestedDays))}</dd>
-        </div>
-        {coverage !== null && (
-          <div className="flex gap-2">
-            <dt className="text-muted">Videos na coleta</dt>
-            <dd className="font-mono">{formatCount(coverage.videoCount)}</dd>
-          </div>
-        )}
-        <div className="flex gap-2">
-          <dt className="text-muted">Videos no periodo</dt>
-          <dd className="font-mono">{formatCount(analyzed)}</dd>
-        </div>
-      </dl>
-
-      {coverage !== null && (
-        <p className="text-xs text-muted">
-          A coleta traz os uploads mais recentes do canal e cobre{' '}
-          <span className="font-mono">{formatDateRange(coverageStart, coverageEnd)}</span>. O filtro
-          seleciona dentro dessa cobertura — nao busca vídeos mais antigos.
-        </p>
-      )}
-
-      {beforeCoverage && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-          <strong>O periodo pedido e anterior a cobertura da coleta.</strong> Isso nao significa que
-          o canal nao publicou nessas datas — significa que a coleta traz os uploads mais recentes e
-          comeca em <span className="font-mono">{formatDate(coverageStart)}</span>.
-        </p>
-      )}
-
-      {afterCoverage && (
-        <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs">
-          <strong>Nenhum video coletado e posterior a este periodo.</strong> O upload mais recente
-          do canal na coleta e de <span className="font-mono">{formatDate(coverageEnd)}</span>.
-        </p>
-      )}
-    </section>
   );
 }

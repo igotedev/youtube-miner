@@ -15,6 +15,7 @@ import type {
   YouTubeChannelId,
   YouTubeVideoId,
 } from '@/modules/youtube-collection';
+import { SupabaseChannelDirectory } from '@/modules/youtube-collection/infrastructure/supabase/supabase-channel-directory';
 import { SupabaseCollectionRunRepository } from '@/modules/youtube-collection/infrastructure/supabase/supabase-collection-run-repository';
 import { ConflictError, NotFoundError } from '@/shared/errors';
 import { createAdminClient } from '@/shared/infrastructure/supabase/supabase-clients';
@@ -446,5 +447,116 @@ describe('remocao do usuario', () => {
     expect(await analyses.findById(analysis.id, efemero)).toBeNull();
     // ...e a coleta, que e global e pode servir a outra pessoa, permanece.
     expect(await collectionRuns.findById(run!.id)).not.toBeNull();
+  });
+});
+
+/**
+ * Historico de analises (SPEC-010).
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE SO APARECE AQUI.
+ *
+ * O fake ordena e corta em JavaScript. O adaptador real traduz as duas coisas em
+ * `order` + `limit`, que viram SQL e passam pelo indice
+ * `channel_analyses_user_requested_idx`. Sao implementacoes DIFERENTES do mesmo
+ * contrato, e so a execucao contra o Postgres mostra se elas concordam.
+ *
+ * O isolamento por usuario tambem: o repositorio e construido com o cliente
+ * ADMINISTRATIVO, que ignora RLS. Se o `.eq('user_id', ...)` sumisse do codigo,
+ * nenhum teste em memoria notaria e a policy nao seguraria.
+ * ---------------------------------------------------------------------------
+ */
+describe('listByOwner', () => {
+  it('devolve lista vazia para quem nunca analisou nada', async () => {
+    const novato = await createUser();
+    createdUsers.push(novato);
+
+    expect(await analyses.listByOwner(novato, 50)).toEqual([]);
+  });
+
+  it('ordena da mais recente para a mais antiga', async () => {
+    const dono = await createUser();
+    createdUsers.push(dono);
+
+    const antiga = buildAnalysis(dono, channelId, {
+      requestedAt: new Date(REQUESTED_AT.getTime() - 2 * MS_PER_DAY),
+    });
+    const nova = buildAnalysis(dono, channelId, {
+      requestedAt: new Date(REQUESTED_AT.getTime() + 2 * MS_PER_DAY),
+    });
+    const media = buildAnalysis(dono, channelId);
+
+    // Gravadas fora de ordem: a ordem do resultado nao pode depender da ordem de
+    // insercao nem do plano que o Postgres escolher.
+    await analyses.create(media);
+    await analyses.create(nova);
+    await analyses.create(antiga);
+
+    const found = await analyses.listByOwner(dono, 50);
+
+    expect(found.map((analysis) => analysis.id)).toEqual([nova.id, media.id, antiga.id]);
+  });
+
+  it('respeita o teto e corta as mais antigas', async () => {
+    const dono = await createUser();
+    createdUsers.push(dono);
+
+    const nova = buildAnalysis(dono, channelId, {
+      requestedAt: new Date(REQUESTED_AT.getTime() + MS_PER_DAY),
+    });
+    await analyses.create(buildAnalysis(dono, channelId));
+    await analyses.create(nova);
+
+    const found = await analyses.listByOwner(dono, 1);
+
+    // O `limit` do SQL corta DEPOIS do `order by`. Se a ordem fosse aplicada em
+    // memoria, este teste devolveria a analise errada.
+    expect(found.map((analysis) => analysis.id)).toEqual([nova.id]);
+  });
+
+  it('nunca devolve analise de outro usuario', async () => {
+    const dono = await createUser();
+    const estranho = await createUser();
+    createdUsers.push(dono, estranho);
+
+    const minha = buildAnalysis(dono, channelId);
+    // A alheia e a MAIS RECENTE: sem o filtro por dono ela viria primeiro.
+    const alheia = buildAnalysis(estranho, channelId, {
+      requestedAt: new Date(REQUESTED_AT.getTime() + MS_PER_DAY),
+    });
+
+    await analyses.create(minha);
+    await analyses.create(alheia);
+
+    const found = await analyses.listByOwner(dono, 50);
+
+    expect(found.map((analysis) => analysis.id)).toEqual([minha.id]);
+  });
+});
+
+describe('ChannelDirectory.findSummaries', () => {
+  const directory = new SupabaseChannelDirectory(client);
+
+  it('devolve titulo nulo para canal registrado sem coleta concluida', async () => {
+    // `registerChannel` cria a linha via `startRun` — exatamente o estado em que
+    // uma analise que falhou na coleta deixa o canal.
+    const [summary] = await directory.findSummaries([channelId]);
+
+    expect(summary).toEqual({ id: channelId, title: null, handle: null });
+  });
+
+  it('busca varios canais em uma consulta e omite o que nao existe', async () => {
+    const outro = await registerChannel();
+    const inexistente = makeChannelId();
+
+    const found = await directory.findSummaries([channelId, outro, inexistente]);
+
+    // O ausente simplesmente nao vem. Nao e erro: uma analise orfa nao pode
+    // derrubar a lista inteira.
+    expect(found.map((summary) => summary.id).sort()).toEqual([channelId, outro].sort());
+  });
+
+  it('nao vai ao banco quando nada e pedido', async () => {
+    expect(await directory.findSummaries([])).toEqual([]);
   });
 });

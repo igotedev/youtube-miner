@@ -47,6 +47,14 @@ export class InMemoryAnalysisRepository implements AnalysisRepository {
     return Promise.resolve(found);
   }
 
+  listByOwner(ownerId: UserId, limit: number): Promise<readonly Analysis[]> {
+    const found = [...this.analyses.values()]
+      .filter((analysis) => analysis.requestedBy === ownerId)
+      .sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())
+      .slice(0, limit);
+    return Promise.resolve(found);
+  }
+
   create(analysis: Analysis): Promise<void> {
     if (analysis.idempotencyKey !== null) {
       // Espelha `uniq_analysis_idempotency_key`.

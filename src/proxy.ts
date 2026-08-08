@@ -48,8 +48,14 @@ import { SIGN_IN_PATH, refreshSession } from '@/config/composition/auth';
  * ---------------------------------------------------------------------------
  */
 
-/** Rotas que exigem sessao. Prefixos, comparados contra o caminho da URL. */
-const PROTECTED_PREFIXES = ['/analise'] as const;
+/**
+ * Rotas que exigem sessao. Prefixos, comparados contra o caminho da URL.
+ *
+ * `/analise` cobre tambem `/analise/[id]`, pelo prefixo. `/historico` precisou
+ * ser acrescentado: uma rota nova nao entra aqui sozinha, e esquecer de
+ * acrescenta-la e exatamente o defeito que o comentario acima descreve.
+ */
+const PROTECTED_PREFIXES = ['/analise', '/historico'] as const;
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Roda SEMPRE, inclusive em rota publica: a renovacao do token nao depende de

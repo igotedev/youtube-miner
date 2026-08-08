@@ -117,6 +117,28 @@ export class SupabaseAnalysisRepository implements AnalysisRepository {
     return (data ?? []).map((row) => toAnalysis(flatten(row as unknown as JoinedRow)));
   }
 
+  /**
+   * Ordem e teto aplicados NO BANCO.
+   *
+   * `order` + `limit` fazem o PostgreSQL usar `channel_analyses_user_requested_idx`
+   * e devolver so o que a tela mostra. Ordenar ou cortar em memoria traria todas
+   * as analises do usuario pela rede para descartar a maioria.
+   */
+  async listByOwner(ownerId: UserId, limit: number): Promise<readonly Analysis[]> {
+    const { data, error } = await this.client
+      .from('channel_analyses')
+      .select(SELECT_COLUMNS)
+      .eq('user_id', ownerId)
+      .order('requested_at', { ascending: false })
+      .limit(limit);
+
+    if (error !== null) {
+      throw translatePostgresError(error, 'analysis.listByOwner');
+    }
+
+    return (data ?? []).map((row) => toAnalysis(flatten(row as unknown as JoinedRow)));
+  }
+
   async create(analysis: Analysis): Promise<void> {
     const internalChannelId = await this.resolveInternalChannelId(analysis.channelId);
 

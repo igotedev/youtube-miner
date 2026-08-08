@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { SIGN_IN_PATH, buildAuthGateway } from '@/config/composition';
@@ -41,7 +42,12 @@ export default async function AnalysisPage() {
         <p className="text-sm text-muted">
           Conectado como <span className="font-mono">{user.email}</span>
         </p>
-        <SignOutButton />
+        <div className="flex items-center gap-4">
+          <Link href="/historico" className="text-sm underline underline-offset-4">
+            Historico
+          </Link>
+          <SignOutButton />
+        </div>
       </div>
 
       <header className="flex flex-col gap-3">

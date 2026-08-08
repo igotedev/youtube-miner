@@ -20,6 +20,14 @@ export {
   type CalculateAnalysisMetricsInput,
 } from './application/use-cases/calculate-analysis-metrics';
 export {
+  ListUserAnalyses,
+  MAX_HISTORY_ITEMS,
+  type AnalysisHistoryItem,
+  type AnalysisHistoryView,
+  type ListUserAnalysesDependencies,
+  type ListUserAnalysesInput,
+} from './application/queries/list-user-analyses';
+export {
   GetAnalysisMetrics,
   type AnalysisMetricsView,
   type CollectionCoverage,

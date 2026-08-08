@@ -23,9 +23,11 @@ e **não exibe dado indisponível como zero**.
 > na YouTube Data API, calcula as métricas e **grava tudo no PostgreSQL**. As
 > análises sobrevivem ao reinício do servidor.
 >
+> `/historico` lista as suas análises anteriores, e `/analise/[id]` reabre
+> qualquer uma delas sem recoletar nada nem gastar quota.
+>
 > Falta o relatório de IA — por isso a análise termina em
-> `partially_completed` — e a tela de histórico: a análise é persistida, mas
-> `/analise` só mostra o resultado da execução recém-disparada.
+> `partially_completed`.
 >
 > **O Supabase é obrigatório.** Sem ele a aplicação falha, dizendo qual variável
 > falta. Não há modo em memória nem sessão de demonstração — ver a seção 6 da
@@ -70,13 +72,17 @@ O que existe:
   verificada em três camadas independentes — e o proxy **não** é uma delas
 - ✅ **Persistência ligada de verdade** (SPEC-009): a análise é gravada no
   PostgreSQL e sobrevive ao reinício. Verificado derrubando o processo
-- ✅ SPEC-001 a SPEC-009, seis ADRs e documentos de arquitetura
+- ✅ **Histórico de análises** (SPEC-010): `/historico` lista as suas análises da
+  mais recente para a mais antiga e `/analise/[id]` reabre qualquer uma delas —
+  **sem migração, sem chamada externa e sem gastar quota**. O índice que a
+  consulta usa existia desde a SPEC-004, sem chamador
+- ✅ SPEC-001 a SPEC-010, seis ADRs e documentos de arquitetura
 
 O que **não** existe:
 
-- ❌ **Histórico na tela** — a análise fica guardada, mas `/analise` só mostra o
-  resultado da execução recém-disparada. O dado está lá; falta a tela que o busca
 - ❌ Relatório de IA — por isso a análise termina em `partially_completed`
+- ❌ Paginação, busca ou filtro no histórico — teto fixo de 50 análises, que a
+  tela declara quando é atingido
 - ❌ Login com Google — adiado com motivo registrado no ADR-006
 - ❌ Mais de 50 vídeos por análise; dados privados do canal (exigiria OAuth)
 - ❌ Extensão Chrome, pagamentos, dashboard

@@ -118,6 +118,9 @@ describe('registro do canal', () => {
       collectionRuns: new InMemoryCollectionRunRepository(),
       channelDirectory: {
         ensureRegistered: () => Promise.reject(falha),
+        // Este caso de uso nao le o diretorio. Presente so para satisfazer o
+        // contrato; ser chamado aqui seria o proprio defeito.
+        findSummaries: () => Promise.reject(new Error('nao deve ser chamado')),
       },
       analysisFreshnessHours: FRESHNESS_HOURS,
     });

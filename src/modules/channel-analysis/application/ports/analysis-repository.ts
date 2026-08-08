@@ -28,6 +28,20 @@ export interface AnalysisRepository {
   listByChannel(ownerId: UserId, channelId: YouTubeChannelId): Promise<readonly Analysis[]>;
 
   /**
+   * Todas as analises do usuario, da mais recente para a mais antiga.
+   *
+   * O contrario de `listByChannel`, que exige saber o canal de antemao. O
+   * historico precisa justamente do que ainda nao se sabe: quais canais este
+   * usuario ja analisou.
+   *
+   * `limit` e PARAMETRO, e nao constante interna, para que o adaptador possa
+   * aplica-lo no banco. Trazer tudo e cortar em memoria desperdicaria o indice
+   * `channel_analyses (user_id, requested_at desc)`, que existe desde a SPEC-004
+   * esperando exatamente esta consulta.
+   */
+  listByOwner(ownerId: UserId, limit: number): Promise<readonly Analysis[]>;
+
+  /**
    * @throws {ConflictError} `idempotencyKey` ja usada por este usuario. A
    *   deteccao vem do indice unico no banco: entre consultar e inserir cabe
    *   outra requisicao.

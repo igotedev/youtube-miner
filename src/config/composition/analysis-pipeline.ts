@@ -3,6 +3,7 @@ import { SupabaseAnalysisRepository } from '@/modules/channel-analysis/infrastru
 import {
   CalculateAnalysisMetrics,
   GetAnalysisMetrics,
+  ListUserAnalyses,
   StartChannelAnalysis,
 } from '@/modules/channel-analysis';
 import { SupabaseAnalyticsResultRepository } from '@/modules/video-analytics/infrastructure/supabase/supabase-analytics-result-repository';
@@ -64,6 +65,7 @@ export interface AnalysisPipeline {
   readonly start: StartChannelAnalysis;
   readonly calculateMetrics: CalculateAnalysisMetrics;
   readonly getMetrics: GetAnalysisMetrics;
+  readonly listAnalyses: ListUserAnalyses;
 }
 
 /**
@@ -126,6 +128,10 @@ export function buildAnalysisPipeline(): AnalysisPipeline {
 
   const analyticsResults = new SupabaseAnalyticsResultRepository(supabase);
 
+  // Um so diretorio para os dois usos: `StartChannelAnalysis` registra o canal
+  // antes de criar a analise, e `ListUserAnalyses` le o titulo para a lista.
+  const channelDirectory = new SupabaseChannelDirectory(supabase);
+
   /**
    * A chave decide a origem dos dados.
    *
@@ -147,7 +153,7 @@ export function buildAnalysisPipeline(): AnalysisPipeline {
     mode: collection.mode,
     start: new StartChannelAnalysis({
       ...shared,
-      channelDirectory: new SupabaseChannelDirectory(supabase),
+      channelDirectory,
       channelResolver: collection.channelResolver,
       channelSource: collection.channelSource,
       analysisFreshnessHours: env.ANALYSIS_FRESHNESS_HOURS,
@@ -162,6 +168,10 @@ export function buildAnalysisPipeline(): AnalysisPipeline {
       // So e usado quando ha recorte por periodo: o filtro precisa dos videos do
       // snapshot, que o resultado ja agregado nao carrega.
       collectionRuns: shared.collectionRuns,
+    }),
+    listAnalyses: new ListUserAnalyses({
+      analyses: shared.analyses,
+      channelDirectory,
     }),
   };
 }

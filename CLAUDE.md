@@ -21,9 +21,11 @@ usuário entra por link de e-mail, informa a URL de um canal, e a análise execu
 terminal — **gravando tudo no PostgreSQL**. As análises sobrevivem ao reinício do
 servidor.
 
-O que ainda **não** existe: relatório de IA (por isso a análise termina em
-`partially_completed`) e tela de histórico — a análise é persistida, mas
-`/analise` só mostra o resultado da execução recém-disparada.
+`/historico` lista as análises anteriores do usuário e `/analise/[id]` reabre
+qualquer uma delas, sem recoletar nada e sem gastar quota.
+
+O que ainda **não** existe: relatório de IA — por isso a análise termina em
+`partially_completed`.
 
 **Duas exigências de configuração, com naturezas diferentes:**
 
@@ -231,25 +233,26 @@ Regras:
 
 ## 10. Documentos
 
-| Arquivo                                                         | Para quê                                                            |
-| --------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `docs/specs/SPEC-001-product-foundation.md`                     | visão, MVP, escopo, regras de negócio RN-01..RN-14, estados, riscos |
-| `docs/specs/SPEC-002-youtube-channel-reference.md`              | validação e normalização de referências de canal                    |
-| `docs/specs/SPEC-003-video-analytics-engine.md`                 | motor de métricas: média, mediana, frequência, outliers             |
-| `docs/specs/SPEC-004-postgresql-persistence.md`                 | esquema, RLS, reuso de coletas, concorrência, idempotência          |
-| `docs/specs/SPEC-005-analysis-metrics-persistence.md`           | cálculo e persistência das métricas; reuso do cálculo               |
-| `docs/specs/SPEC-006-composition-and-analysis-surface.md`       | raiz de composição, Server Action e primeira tela do pipeline       |
-| `docs/specs/SPEC-007-youtube-data-api-adapter.md`               | integração real com a YouTube Data API; economia de quota           |
-| `docs/specs/SPEC-008-collection-run-persistence.md`             | adaptador Supabase das coletas; conclusão transacional; permissões  |
-| `docs/specs/SPEC-009-authentication-and-live-persistence.md`    | acesso por link de e-mail; persistência ligada na composição        |
-| `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                 |
-| `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                    |
-| `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                            |
-| `docs/adr/ADR-002-nextjs-fullstack.md`                          | por que Next.js nas duas pontas                                     |
-| `docs/adr/ADR-003-postgresql-supabase.md`                       | por que PostgreSQL via Supabase                                     |
-| `docs/adr/ADR-004-external-integrations.md`                     | por que integrações atrás de contratos                              |
-| `docs/adr/ADR-005-persistence-boundaries-and-analysis-reuse.md` | dado global × dado do usuário; service role                         |
-| `docs/adr/ADR-006-cookie-session-with-supabase-auth.md`         | magic link; sessão em cookie; `getUser()`; onde a autorização mora  |
+| Arquivo                                                         | Para quê                                                                 |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `docs/specs/SPEC-001-product-foundation.md`                     | visão, MVP, escopo, regras de negócio RN-01..RN-14, estados, riscos      |
+| `docs/specs/SPEC-002-youtube-channel-reference.md`              | validação e normalização de referências de canal                         |
+| `docs/specs/SPEC-003-video-analytics-engine.md`                 | motor de métricas: média, mediana, frequência, outliers                  |
+| `docs/specs/SPEC-004-postgresql-persistence.md`                 | esquema, RLS, reuso de coletas, concorrência, idempotência               |
+| `docs/specs/SPEC-005-analysis-metrics-persistence.md`           | cálculo e persistência das métricas; reuso do cálculo                    |
+| `docs/specs/SPEC-006-composition-and-analysis-surface.md`       | raiz de composição, Server Action e primeira tela do pipeline            |
+| `docs/specs/SPEC-007-youtube-data-api-adapter.md`               | integração real com a YouTube Data API; economia de quota                |
+| `docs/specs/SPEC-008-collection-run-persistence.md`             | adaptador Supabase das coletas; conclusão transacional; permissões       |
+| `docs/specs/SPEC-009-authentication-and-live-persistence.md`    | acesso por link de e-mail; persistência ligada na composição             |
+| `docs/specs/SPEC-010-analysis-history.md`                       | histórico de análises; leitura no `ChannelDirectory`; teto sem paginação |
+| `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                      |
+| `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                         |
+| `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                                 |
+| `docs/adr/ADR-002-nextjs-fullstack.md`                          | por que Next.js nas duas pontas                                          |
+| `docs/adr/ADR-003-postgresql-supabase.md`                       | por que PostgreSQL via Supabase                                          |
+| `docs/adr/ADR-004-external-integrations.md`                     | por que integrações atrás de contratos                                   |
+| `docs/adr/ADR-005-persistence-boundaries-and-analysis-reuse.md` | dado global × dado do usuário; service role                              |
+| `docs/adr/ADR-006-cookie-session-with-supabase-auth.md`         | magic link; sessão em cookie; `getUser()`; onde a autorização mora       |
 
 **Consulte a SPEC antes de implementar. Registre um ADR antes de mudar
 arquitetura.** Documento desatualizado é pior que documento ausente — se o
