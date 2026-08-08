@@ -55,7 +55,7 @@ import { SIGN_IN_PATH, refreshSession } from '@/config/composition/auth';
  * ser acrescentado: uma rota nova nao entra aqui sozinha, e esquecer de
  * acrescenta-la e exatamente o defeito que o comentario acima descreve.
  */
-const PROTECTED_PREFIXES = ['/analise', '/historico'] as const;
+const PROTECTED_PREFIXES = ['/analise', '/historico', '/listas'] as const;
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Roda SEMPRE, inclusive em rota publica: a renovacao do token nao depende de

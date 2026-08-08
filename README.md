@@ -83,11 +83,22 @@ O que existe:
   tem como calcular (RN-14). Saída restrita por esquema e validada com Zod,
   **sem nenhuma dependência nova**. Falha da IA degrada para
   `partially_completed` sem tocar nos números
-- ✅ SPEC-001 a SPEC-011, sete ADRs e documentos de arquitetura
+- ✅ **Watchlists** (SPEC-012): `/listas` e `/listas/[id]` guardam canais que
+  você **já analisou** — salvar não coleta nada e não gasta unidade de quota
+  nem token de IA. Duas migrações: a que corrige um defeito real do esquema
+  (`unique (user_id, name)` diferenciava maiúsculas, ao contrário do que o
+  próprio comentário prometia) e as três funções que traduzem `UC...` para o
+  identificador interno **dentro do banco**, para que o módulo não leia tabela
+  de outro (R7). **19 asserções pgTAP e 16 testes de integração** provam as
+  duas coisas
+- ✅ SPEC-001 a SPEC-012, sete ADRs e documentos de arquitetura
+- ✅ **As dez capacidades do MVP estão implementadas**
 
 O que **não** existe:
 
-- ❌ Watchlists — a nona e última capacidade do MVP que falta
+- ❌ Processamento em segundo plano — a análise roda **síncrona dentro da Server
+  Action**, 15 a 25 segundos. Funciona em servidor próprio e **impede deploy em
+  serverless** com limite de 10s. Precisa de ADR e SPEC próprios
 - ❌ Paginação, busca ou filtro no histórico — teto fixo de 50 análises, que a
   tela declara quando é atingido
 - ❌ Login com Google — adiado com motivo registrado no ADR-006

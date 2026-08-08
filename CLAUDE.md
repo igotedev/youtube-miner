@@ -28,7 +28,15 @@ O relatório de IA existe (SPEC-011): a análise chega a `completed` com uma
 leitura textual gerada pelo Gemini, exibida separada dos números. Sem
 `GEMINI_API_KEY` o texto é um exemplo que se anuncia como tal.
 
-O que ainda **não** existe: watchlists — a nona capacidade do MVP.
+`/listas` guarda canais que o usuário já analisou (SPEC-012). Salvar não coleta
+nada: o canal só pode entrar numa lista porque já existe no registro global, e
+ele só chegou lá por uma análise. **As dez capacidades do MVP estão
+implementadas.**
+
+O que ainda **não** existe, e é o próximo obstáculo real: a análise roda
+**síncrona dentro da Server Action**, de 15 a 25 segundos. Funciona em servidor
+próprio e **impede deploy em serverless** com limite de 10s. Mudar isso é
+decisão arquitetural — exige ADR e SPEC antes de código.
 
 **Duas exigências de configuração, com naturezas diferentes:**
 
@@ -255,6 +263,7 @@ Regras:
 | `docs/specs/SPEC-009-authentication-and-live-persistence.md`    | acesso por link de e-mail; persistência ligada na composição             |
 | `docs/specs/SPEC-010-analysis-history.md`                       | histórico de análises; leitura no `ChannelDirectory`; teto sem paginação |
 | `docs/specs/SPEC-011-ai-insight-report.md`                      | relatório de IA; saída estruturada; degradação sem chave                 |
+| `docs/specs/SPEC-012-watchlists.md`                             | listas de canais; tradução do id no banco; unicidade de nome corrigida   |
 | `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                      |
 | `docs/architecture/dependency-rules.md`                         | regras R1–R10 e como verificá-las                                        |
 | `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                                 |

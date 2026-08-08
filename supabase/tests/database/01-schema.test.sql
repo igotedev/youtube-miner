@@ -80,9 +80,14 @@ select col_is_unique('public', 'video_analytics_results',
 select col_is_unique('public', 'watchlist_items',
   array['watchlist_id', 'channel_id'],
   'mesmo canal nao se repete na mesma lista');
-select col_is_unique('public', 'watchlists',
-  array['user_id', 'name'],
-  'nome de lista e unico por usuario');
+-- A unicidade de nome NAO e mais uma constraint sobre a coluna: virou indice
+-- funcional sobre `(user_id, lower(name))` na SPEC-012, porque `unique
+-- (user_id, name)` diferenciava maiusculas e o comentario ao lado dela
+-- prometia o contrario. `col_is_unique` nao enxerga indice funcional — a
+-- assercao correspondente vive em `05-watchlists.test.sql`, junto do teste que
+-- prova o comportamento.
+select has_index('public', 'watchlists', 'watchlists_unique_name_per_user',
+  'nome de lista e unico por usuario, ignorando o caixa');
 
 -- --- 7. Indices --------------------------------------------------------------
 select has_index('public', 'youtube_collection_runs', 'uniq_active_run_per_channel',

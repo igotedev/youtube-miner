@@ -132,6 +132,19 @@ a API externa, o que atende diretamente às restrições da especificação.
 migração de um módulo pode quebrar outro em silêncio, e a fronteira que o código
 declara deixa de existir no banco.
 
+**O exemplo deixou de ser hipotético na SPEC-012.** `watchlist_items.channel_id`
+guarda o uuid interno de `youtube_channels`, e o domínio fala `UC...` — alguém
+tem de traduzir. Resolver com um `select` aninhado seria literalmente o que o
+parágrafo acima proíbe. A tradução foi para **três funções no banco**
+(`add_watchlist_item`, `remove_watchlist_item`, `list_watchlist_items`), o único
+lugar onde as duas tabelas legitimamente convivem. Nenhum arquivo de
+`watchlists` menciona `youtube_channels`.
+
+Continua existindo **uma** dívida conhecida no sentido contrário:
+`SupabaseAnalysisRepository.resolveInternalChannelId` faz a mesma tradução por
+consulta direta. Está registrada na SPEC-004, seção 5, e é anterior a esta
+regra ter exemplo concreto de como fazer certo.
+
 ## R8 — segredos entram por um único lugar
 
 `process.env` só pode ser lido em `src/config/` e `shared/infrastructure/`. Todo

@@ -4,10 +4,12 @@ import { notFound, redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { SIGN_IN_PATH, buildAnalysisPipeline, buildAuthGateway } from '@/config/composition';
+import { buildWatchlists } from '@/config/composition/watchlists';
 import type { AnalysisId } from '@/modules/channel-analysis';
 import { NotFoundError } from '@/shared/errors';
 
 import { SignOutButton } from '../../auth/sign-out-button';
+import { SaveChannelForm } from '../../listas/save-channel-form';
 import { AnalysisResult } from '../analysis-result';
 import { formatTimestamp } from '../format';
 
@@ -82,6 +84,17 @@ export default async function AnalysisDetailPage({
 
   const { analysis, metrics, calculatedAt } = view;
 
+  /**
+   * As listas do usuario, para o seletor de "Salvar em uma lista" (SPEC-012).
+   *
+   * Carregadas AQUI, no servidor, e passadas prontas ao componente de cliente.
+   * Buscar do navegador exigiria uma rota que devolvesse as listas — mais um
+   * endpoint para autorizar, resolvendo um problema que esta pagina ja resolveu.
+   *
+   * Nao gasta quota nem token: sao apenas nomes vindos do proprio banco.
+   */
+  const watchlists = await buildWatchlists().manage.list(user.id);
+
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-6 py-16">
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-4">
@@ -116,6 +129,17 @@ export default async function AnalysisDetailPage({
           afirmar a origem dos numeros abaixo.
         </p>
       )}
+
+      {/*
+        Fica ACIMA das metricas e fora do bloco que depende delas: salvar o
+        canal na lista nao tem nada a ver com o calculo ter dado certo. Uma
+        analise que falhou continua identificando um canal que o usuario pode
+        querer acompanhar.
+      */}
+      <SaveChannelForm
+        channelId={analysis.channelId}
+        options={watchlists.map((list) => ({ id: list.id, name: list.name }))}
+      />
 
       {metrics === null ? (
         /*
