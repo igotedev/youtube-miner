@@ -13,20 +13,25 @@ Ambas rodam em `npm run verify`. **Mudou uma regra aqui, mude as duas.**
 
 ## Tabela de regras
 
-| ID     | Regra                                                                                 | ESLint | Teste |
-| ------ | ------------------------------------------------------------------------------------- | :----: | :---: |
-| **R1** | `domain` e `application` não importam React nem Next.js                               |   ✅   |  ✅   |
-| **R2** | `domain` e `application` não importam SDKs externos (Supabase, Anthropic, googleapis) |   ✅   |  ✅   |
-| **R3** | Camadas internas não importam `infrastructure`                                        |   ✅   |  ✅   |
-| **R4** | `domain` e `application` não importam `presentation`                                  |   ✅   |  ✅   |
-| **R5** | Módulos só se alcançam pelo barrel público `@/modules/<nome>` ¹                       |   ✅   |  ✅   |
-| **R6** | `presentation` não importa `infrastructure` ¹                                         |   ✅   |  ✅   |
-| **R7** | Um módulo não acessa tabelas de outro módulo                                          |   ❌   |  ❌   |
-| **R8** | Apenas `src/config/` e `shared/infrastructure/` leem `process.env`                    |   ❌   |  ✅   |
-| **R9** | `domain` e `application` não acessam relógio nem aleatoriedade                        |   ✅   |  ✅   |
+| ID      | Regra                                                                                 | ESLint | Teste |
+| ------- | ------------------------------------------------------------------------------------- | :----: | :---: |
+| **R1**  | `domain` e `application` não importam React nem Next.js                               |   ✅   |  ✅   |
+| **R2**  | `domain` e `application` não importam SDKs externos (Supabase, Anthropic, googleapis) |   ✅   |  ✅   |
+| **R3**  | Camadas internas não importam `infrastructure`                                        |   ✅   |  ✅   |
+| **R4**  | `domain` e `application` não importam `presentation`                                  |   ✅   |  ✅   |
+| **R5**  | Módulos só se alcançam pelo barrel público `@/modules/<nome>` ¹                       |   ✅   |  ✅   |
+| **R6**  | `presentation` não importa `infrastructure` ¹                                         |   ✅   |  ✅   |
+| **R7**  | Um módulo não acessa tabelas de outro módulo                                          |   ❌   |  ❌   |
+| **R8**  | Apenas `src/config/` e `shared/infrastructure/` leem `process.env`                    |   ❌   |  ✅   |
+| **R9**  | `domain` e `application` não acessam relógio nem aleatoriedade                        |   ✅   |  ✅   |
+| **R10** | O grafo de dependências entre módulos é acíclico **em tempo de execução**             |   ❌   |  ✅   |
 
 ¹ Duas exceções documentadas, ambas raízes de composição: arquivos de teste e
 `src/config/composition/`. Ver as seções ao fim deste documento.
+
+R10 não tem coluna de ESLint porque `no-restricted-imports` casa o texto de um
+import por vez — detectar um ciclo exige montar o grafo inteiro, que é trabalho
+de teste, não de lint.
 
 R7 depende de SQL, que nenhuma das duas redes lê. Ela é garantida por revisão e
 pela consequência de R5: sem acesso ao repositório de outro módulo, não há como
@@ -103,8 +108,8 @@ importação e esconde qual é a superfície pública de verdade.
 módulos, e você sabe disso ao editar o arquivo. O que está fora dele é livre
 para refatorar. Sem essa linha, todo detalhe interno vira contrato por acidente.
 
-O grafo de dependência entre módulos deve permanecer **acíclico** (ver
-`overview.md`, seção 5).
+O grafo de dependência entre módulos deve permanecer **acíclico em tempo de
+execução** — é a R10, verificada por teste.
 
 ## R6 — presentation não instancia adaptadores
 
@@ -206,6 +211,34 @@ Codificada no bloco `niche-miner/composition-root` do ESLint e em
 **positiva** complementar: nenhum arquivo de produção fora da raiz de composição
 importa `infrastructure`. R3 e R6 dizem quem não pode; essa diz quem pode, e a
 lista tem um item.
+
+## R10 — o grafo de módulos é acíclico em tempo de execução
+
+O grafo é montado considerando **apenas imports de valor**. `import type` e
+`export type` somem na compilação e não criam aresta em tempo de execução.
+
+**Por que a distinção importa.** Um ciclo de valor é dependência circular real:
+dependendo da ordem em que o bundler resolve os módulos, um dos lados pode
+receber `undefined` no momento do import — um defeito que se manifesta longe da
+causa e é difícil de rastrear. Um ciclo de tipos não existe depois de compilar.
+
+**A exceção que existe hoje** é `channel-analysis ⟷ ai-insights`, autorizada e
+descrita na SPEC-011, seção 5. Ela é inteiramente de tipos.
+
+**Duas barreiras**, ambas em `tests/architecture/dependency-rules.test.ts`:
+
+| Verificação                                  | O que pega                              |
+| -------------------------------------------- | --------------------------------------- |
+| Grafo de valor acíclico                      | qualquer ciclo real, nomeando o caminho |
+| Barrel de `ai-insights` exporta apenas tipos | a causa, **antes** de o ciclo se formar |
+
+A segunda existe porque falha mais cedo e aponta o motivo em vez do sintoma.
+Antes da auditoria de 2026-08-08 essa invariante estava escrita na SPEC e
+verificada por ninguém.
+
+**Consequência prática:** para que um módulo em ciclo de tipos exporte uma
+constante ou classe, ela vai em `infrastructure/`, que a raiz de composição
+alcança por caminho explícito — não no barrel.
 
 ---
 

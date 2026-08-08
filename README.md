@@ -285,7 +285,7 @@ presentation  →  application  →  domain
 sabe que Supabase, YouTube ou Claude existem — trocar qualquer um deles é
 escrever outro adaptador, sem tocar em regra de negócio.
 
-As regras de dependência (R1–R9) não são só documentação: rodam em
+As regras de dependência (R1–R10) não são só documentação: rodam em
 `npm run verify`, por duas redes independentes — `eslint.config.mjs` e
 `tests/architecture/dependency-rules.test.ts`.
 
@@ -315,7 +315,7 @@ Detalhes em `docs/architecture/overview.md`.
 │  ├─ migrations/     vazio — esquema virá em SPEC própria
 │  └─ seed.sql
 ├─ tests/
-│  ├─ architecture/   verificação executável das regras R1–R9
+│  ├─ architecture/   verificação executável das regras R1–R10
 │  ├─ integration/    vazio
 │  └─ e2e/            vazio — Playwright em etapa futura
 ├─ CLAUDE.md          instruções permanentes do projeto
@@ -358,7 +358,7 @@ Detalhes e proibições em `CLAUDE.md`.
 | [SPEC-008](docs/specs/SPEC-008-collection-run-persistence.md)            | Adaptador Supabase das coletas e conclusão transacional  |
 | [SPEC-009](docs/specs/SPEC-009-authentication-and-live-persistence.md)   | Acesso por link de e-mail e persistência ligada          |
 | [Visão da arquitetura](docs/architecture/overview.md)                    | Camadas, fluxo da análise, limites, filas no futuro      |
-| [Regras de dependência](docs/architecture/dependency-rules.md)           | R1–R9 e como são verificadas                             |
+| [Regras de dependência](docs/architecture/dependency-rules.md)           | R1–R10 e como são verificadas                            |
 | [ADR-001](docs/adr/ADR-001-modular-monolith.md)                          | Monólito modular                                         |
 | [ADR-002](docs/adr/ADR-002-nextjs-fullstack.md)                          | Next.js nas duas pontas                                  |
 | [ADR-003](docs/adr/ADR-003-postgresql-supabase.md)                       | PostgreSQL via Supabase                                  |

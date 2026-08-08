@@ -125,6 +125,12 @@ composição alcança por caminho explícito. Exportar um valor dali e importá-
 `channel-analysis` transformaria o ciclo em real — e essa é a linha que não se
 cruza sem outro ADR.
 
+> **Correção posterior (2026-08-08).** Esta invariante foi escrita aqui e **não
+> era verificada por nada** — nem pelo ESLint, nem pelo teste de arquitetura.
+> A auditoria apontou, e hoje ela é a **R10**, com duas barreiras: uma detecta
+> ciclo de valor entre quaisquer módulos e nomeia o caminho; a outra falha antes,
+> se este barrel exportar um valor. Ver `docs/architecture/dependency-rules.md`.
+
 ## 6. Os estados, e por que a ordem importa
 
 ```

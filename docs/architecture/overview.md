@@ -166,13 +166,32 @@ diretamente; a via é o contrato exposto pelo barrel (R7).
 watchlists ─────► identity
      └──────────► youtube-collection
 channel-analysis ─► identity, youtube-collection, video-analytics, ai-insights
-ai-insights ──────► video-analytics
+ai-insights ──────► video-analytics, youtube-collection
+     └ ─ ─ ─ ─ ─► channel-analysis   (só tipos — ver abaixo)
 youtube-collection ─► (nenhum)
 identity ───────────► (nenhum)
 ```
 
-O grafo é **acíclico**, e assim deve permanecer. Se dois módulos precisarem um
-do outro, ou a fronteira está no lugar errado, ou falta um terceiro conceito.
+**O grafo de valor é acíclico, e assim deve permanecer.** Se dois módulos
+precisarem um do outro em tempo de execução, ou a fronteira está no lugar
+errado, ou falta um terceiro conceito. Verificado pela **R10**.
+
+### A única exceção: um ciclo de tipos entre `channel-analysis` e `ai-insights`
+
+`channel-analysis` importa `InsightGenerator` e `InsightReport`; `ai-insights`
+importa `AnalysisId`. Os dois lados usam `import type`, e o TypeScript **apaga
+os dois na compilação** — não existe aresta em tempo de execução, e nenhum
+bundler vê o ciclo.
+
+A invariante que mantém isso verdade: **o barrel de `ai-insights` exporta apenas
+tipos**. Constantes e classes vivem em `infrastructure/`, que só a raiz de
+composição alcança.
+
+Até a auditoria de 2026-08-08 essa invariante estava escrita e verificada por
+ninguém. Hoje ela tem duas barreiras, ambas na R10: uma detecta ciclo de valor
+entre quaisquer módulos, outra falha antes disso se o barrel exportar um valor.
+
+Ver SPEC-011, seção 5, e `dependency-rules.md`, R10.
 
 ## 6. Dependências permitidas e proibidas
 

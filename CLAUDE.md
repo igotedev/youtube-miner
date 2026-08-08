@@ -103,7 +103,7 @@ npm run format:check
 
 ## 4. Regras de dependência
 
-Os IDs R1–R9 estão em `docs/architecture/dependency-rules.md`. Resumo:
+Os IDs R1–R10 estão em `docs/architecture/dependency-rules.md`. Resumo:
 
 - **R1/R2** — `domain` e `application` não importam React, Next ou SDKs externos.
 - **R3** — camadas internas não importam `infrastructure`. A dependência se
@@ -118,6 +118,11 @@ Os IDs R1–R9 estão em `docs/architecture/dependency-rules.md`. Resumo:
 - **R9** — `domain` e `application` não leem o relógio nem usam aleatoriedade.
   `new Date()` sem argumento, `Date.now()` e `Math.random()` são proibidos, e a
   regra vale também em teste. O instante chega por parâmetro ou pela porta `Clock`.
+- **R10** — o grafo de módulos é acíclico **em tempo de execução**. Só imports de
+  valor contam: `import type` some na compilação. A única exceção é o ciclo de
+  tipos entre `channel-analysis` e `ai-insights` (SPEC-011, seção 5), mantido
+  inofensivo pela invariante de que o barrel de `ai-insights` **exporta apenas
+  tipos** — e as duas coisas são verificadas.
 
 Verificadas por duas redes independentes, ambas em `npm run verify`:
 `eslint.config.mjs` e `tests/architecture/dependency-rules.test.ts`.
@@ -250,9 +255,8 @@ Regras:
 | `docs/specs/SPEC-009-authentication-and-live-persistence.md`    | acesso por link de e-mail; persistência ligada na composição             |
 | `docs/specs/SPEC-010-analysis-history.md`                       | histórico de análises; leitura no `ChannelDirectory`; teto sem paginação |
 | `docs/specs/SPEC-011-ai-insight-report.md`                      | relatório de IA; saída estruturada; degradação sem chave                 |
-| `docs/specs/SPEC-011-ai-insight-report.md`                      | relatório de IA; saída estruturada; degradação sem chave                 |
 | `docs/architecture/overview.md`                                 | camadas, fluxo da análise, limites, filas no futuro                      |
-| `docs/architecture/dependency-rules.md`                         | regras R1–R9 e como verificá-las                                         |
+| `docs/architecture/dependency-rules.md`                         | regras R1–R10 e como verificá-las                                        |
 | `docs/adr/ADR-001-modular-monolith.md`                          | por que monólito modular                                                 |
 | `docs/adr/ADR-002-nextjs-fullstack.md`                          | por que Next.js nas duas pontas                                          |
 | `docs/adr/ADR-003-postgresql-supabase.md`                       | por que PostgreSQL via Supabase                                          |

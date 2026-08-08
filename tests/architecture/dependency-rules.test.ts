@@ -30,6 +30,14 @@ interface SourceFile {
   /** Codigo sem comentarios. As checagens de texto usam este valor, nunca o bruto. */
   readonly code: string;
   readonly imports: readonly string[];
+  /**
+   * Apenas os imports que sobrevivem a compilacao.
+   *
+   * `import type` e `export type` sao apagados pelo TypeScript e nao criam
+   * aresta em tempo de execucao. A R10 depende dessa distincao: um ciclo de
+   * tipos e inofensivo, um ciclo de valor nao.
+   */
+  readonly valueImports: readonly string[];
 }
 
 /**
@@ -137,6 +145,66 @@ function extractImports(contents: string): string[] {
   return found;
 }
 
+/**
+ * Imports que existem em tempo de EXECUCAO.
+ *
+ * Descarta tres formas que o TypeScript apaga:
+ *
+ *   import type { X } from 'y'      declaracao inteira e de tipo
+ *   export type { X } from 'y'      reexport de tipo
+ *   import { type X, type Y } from 'y'   todos os especificadores sao de tipo
+ *
+ * A ultima forma exige olhar dentro das chaves: `import { type A, b }` E de
+ * valor, porque `b` sobrevive. Tratar a lista inteira como tipo por causa de um
+ * `type` solto deixaria passar exatamente o ciclo que a R10 procura.
+ *
+ * `import 'y'` (efeito colateral) conta como valor: e a forma que existe
+ * justamente para executar algo.
+ */
+function extractValueImports(contents: string): string[] {
+  const found: string[] = [];
+
+  IMPORT_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = IMPORT_PATTERN.exec(contents)) !== null) {
+    const specifier = match[1];
+    if (specifier === undefined) continue;
+
+    const statement = match[0];
+
+    // `import type ...` / `export type ...` — a declaracao inteira e de tipo.
+    if (/(?:^|\n)\s*(?:import|export)\s+type\s/.test(statement)) continue;
+
+    // Chaves presentes: e de valor se ao menos um especificador nao for `type`.
+    const braces = /\{([\s\S]*?)\}/.exec(statement);
+    if (braces?.[1] !== undefined) {
+      const specifiers = braces[1]
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s !== '');
+
+      const hasDefaultOrNamespace = /(?:^|\n)\s*import\s+(?:[A-Za-z_$][\w$]*|\*)\s*[,{]/.test(
+        statement,
+      );
+
+      if (specifiers.length > 0 && !hasDefaultOrNamespace) {
+        const allTypes = specifiers.every((s) => /^type\s/.test(s));
+        if (allTypes) continue;
+      }
+    }
+
+    found.push(specifier);
+  }
+
+  BARE_IMPORT_PATTERN.lastIndex = 0;
+  while ((match = BARE_IMPORT_PATTERN.exec(contents)) !== null) {
+    const specifier = match[1];
+    if (specifier !== undefined) found.push(specifier);
+  }
+
+  return found;
+}
+
 function layerOf(rel: string): Layer | null {
   const segments = rel.split('/');
   for (const layer of ['domain', 'application', 'infrastructure', 'presentation'] as const) {
@@ -161,6 +229,7 @@ const FILES: readonly SourceFile[] = listSourceFiles(SRC).map((abs) => {
     isTest: isTestFile(rel),
     code,
     imports: extractImports(code),
+    valueImports: extractValueImports(code),
   };
 });
 
@@ -222,6 +291,31 @@ describe('stripComments', () => {
     const source = "const url = 'https://youtube.com/@canal'; const k = process.env.X;";
     expect(stripComments(source)).toContain('process.env');
     expect(stripComments(source)).toContain('https://youtube.com/@canal');
+  });
+});
+
+describe('extractValueImports', () => {
+  // Guarda do guarda, como em `stripComments`: se esta funcao classificar tudo
+  // como tipo, a R10 passaria a nao detectar ciclo nenhum e ninguem perceberia.
+  const only = (source: string) => extractValueImports(source);
+
+  it('descarta declaracoes inteiramente de tipo', () => {
+    expect(only("import type { A } from 'x';")).toEqual([]);
+    expect(only("export type { A } from 'x';")).toEqual([]);
+    expect(only("import { type A, type B } from 'x';")).toEqual([]);
+  });
+
+  it('mantem o que sobrevive a compilacao', () => {
+    expect(only("import { A } from 'x';")).toEqual(['x']);
+    expect(only("import A from 'x';")).toEqual(['x']);
+    expect(only("import 'x';")).toEqual(['x']);
+    expect(only("export { A } from 'x';")).toEqual(['x']);
+  });
+
+  it('uma lista mista E de valor', () => {
+    // `import { type A, b }` deixa `b` em tempo de execucao. Tratar a lista
+    // inteira como tipo por causa do `type` deixaria passar o ciclo real.
+    expect(only("import { type A, b } from 'x';")).toEqual(['x']);
   });
 });
 
@@ -356,5 +450,85 @@ describe('regras de dependencia', () => {
       .map((f) => `R8 — src/${f.rel} le process.env diretamente`);
 
     expect(violations).toEqual([]);
+  });
+
+  it('R10 — o grafo de modulos e aciclico em tempo de execucao', () => {
+    /**
+     * O grafo considera APENAS imports de valor.
+     *
+     * Um ciclo de tipos e apagado pelo TypeScript e nao existe em tempo de
+     * execucao — e o caso de `channel-analysis` e `ai-insights`, autorizado e
+     * descrito na SPEC-011, secao 5. Um ciclo de VALOR e outra coisa: cria
+     * dependencia circular real, e o valor pode chegar `undefined` a quem
+     * importa, dependendo da ordem em que o bundler resolve os modulos.
+     *
+     * Esta e a rede que faltava. Ate a auditoria de 2026-08-08, a invariante
+     * que mantinha o ciclo inofensivo — "o barrel de ai-insights exporta apenas
+     * tipos" — estava escrita na SPEC e verificada por ninguem.
+     */
+    const edges = new Map<string, Set<string>>();
+
+    for (const file of FILES) {
+      if (file.isTest || file.moduleName === null) continue;
+
+      for (const specifier of file.valueImports) {
+        const target = resolveToSrc(file, specifier);
+        if (target === null) continue;
+
+        const segments = target.split('/');
+        if (segments[0] !== 'modules') continue;
+
+        const targetModule = segments[1];
+        if (targetModule === undefined || targetModule === file.moduleName) continue;
+
+        const from = edges.get(file.moduleName) ?? new Set<string>();
+        from.add(targetModule);
+        edges.set(file.moduleName, from);
+      }
+    }
+
+    // Busca em profundidade com pilha, guardando o caminho para que a mensagem
+    // de falha diga QUAL ciclo — um "existe um ciclo" nao ajuda ninguem.
+    const cycles: string[] = [];
+    const visited = new Set<string>();
+
+    const walk = (node: string, path: readonly string[]): void => {
+      const index = path.indexOf(node);
+      if (index !== -1) {
+        cycles.push([...path.slice(index), node].join(' -> '));
+        return;
+      }
+      if (visited.has(node)) return;
+      visited.add(node);
+
+      for (const next of edges.get(node) ?? []) walk(next, [...path, node]);
+    };
+
+    for (const node of edges.keys()) walk(node, []);
+
+    expect(cycles).toEqual([]);
+  });
+
+  it('R10 — o barrel de ai-insights exporta apenas tipos', () => {
+    /**
+     * A invariante que mantem o ciclo com `channel-analysis` inofensivo.
+     *
+     * Enquanto este barrel so exportar tipos, o ciclo desaparece na compilacao.
+     * Um `export const` aqui, importado do outro lado, o tornaria real — e o
+     * teste acima ja pegaria isso. Este e a segunda barreira, e falha ANTES,
+     * apontando a causa em vez do sintoma.
+     *
+     * Constantes e classes deste modulo vivem em `infrastructure/`, que a raiz
+     * de composicao alcanca por caminho explicito.
+     */
+    const barrel = FILES.find((f) => f.rel === 'modules/ai-insights/index.ts');
+    expect(barrel).toBeDefined();
+
+    const valueExports = (barrel?.code ?? '')
+      .split('\n')
+      .filter((line) => /^\s*export\s/.test(line))
+      .filter((line) => !/^\s*export\s+type\s/.test(line));
+
+    expect(valueExports).toEqual([]);
   });
 });

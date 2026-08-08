@@ -1,0 +1,78 @@
+# Verificacao automatica das mesmas redes que `npm run verify` roda localmente.
+#
+# ---------------------------------------------------------------------------
+# POR QUE ISTO EXISTE.
+#
+# O projeto tem duas redes independentes de fronteira arquitetural, typecheck
+# estrito e 629 asserções — e ate a auditoria de 2026-08-08 nada disso rodava
+# sozinho. Todas as garantias dependiam de alguem lembrar do comando, e um push
+# com uma regra quebrada entrava sem resistencia.
+#
+# ---------------------------------------------------------------------------
+# CUSTO: ZERO.
+#
+# O repositorio e publico, e o GitHub Actions e ilimitado e gratuito para
+# repositorios publicos. Se ele algum dia virar privado, passa a consumir a cota
+# mensal do plano — e esta linha e o lugar de reavaliar.
+# ---------------------------------------------------------------------------
+
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Um push novo cancela a execucao anterior do mesmo ramo: a resposta que importa
+# e sobre o ultimo commit, e deixar as antigas correndo so gasta fila.
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Alinhado com `engines.node` do package.json.
+          node-version: '20'
+          cache: npm
+
+      # `npm ci` e nao `npm install`: instala exatamente o que esta no
+      # package-lock.json e falha se os dois divergirem. Uma dependencia que
+      # entrou sem passar pelo lockfile e defeito, nao conveniencia.
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Os tres passos do `npm run verify`, separados de proposito: quando um
+      # falha, a aba do GitHub diz QUAL sem ninguem precisar ler o log inteiro.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint e fronteiras (R1-R6, R9)
+        run: npm run lint
+
+      - name: Testes (inclui R1-R10)
+        run: npm test
+
+      # Fora do `verify` porque nao e correcao: e consistencia de formatacao.
+      # Roda por ultimo para nao mascarar uma falha de verdade.
+      - name: Formatacao
+        run: npm run format:check
+
+      # ---------------------------------------------------------------------
+      # O QUE ESTE FLUXO NAO RODA, E POR QUE.
+      #
+      # `npm run test:integration` exige Docker com o Supabase local no ar e
+      # credenciais. `npm run db:test` (pgTAP) exige o mesmo, e hoje so passa
+      # sobre um banco recem-resetado — defeito conhecido em
+      # supabase/tests/database/04-cascades.test.sql.
+      #
+      # Incluir qualquer um dos dois faria o CI falhar por motivo errado, que e
+      # a forma mais rapida de ensinar todo mundo a ignorar o CI.
+      # ---------------------------------------------------------------------
